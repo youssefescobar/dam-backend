@@ -6,4 +6,6 @@ coverage/
 .mongodb-binaries/
 dist/
 .cache/
-models/
+# Hugging Face / ONNX model downloads (not Mongoose src/models)
+**/hf-models/
+**/.huggingface/

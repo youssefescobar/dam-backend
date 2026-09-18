@@ -1,0 +1,56 @@
+name: Deploy to DigitalOcean
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-droplet
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /var/www/dam-backend
+
+            if [ ! -d .git ]; then
+              echo "ERROR: /var/www/dam-backend is not a git repo."
+              echo "On the droplet, convert it once (see README deploy section)."
+              exit 1
+            fi
+
+            # Keep production .env; never overwrite from git
+            git fetch origin
+            BRANCH=$(git rev-parse --abbrev-ref HEAD)
+            if git show-ref --verify --quiet "refs/remotes/origin/master"; then
+              REF=origin/master
+            else
+              REF=origin/main
+            fi
+            git reset --hard "$REF"
+
+            npm ci --omit=dev
+
+            if pm2 describe dam-backend >/dev/null 2>&1; then
+              pm2 restart dam-backend --update-env
+            else
+              pm2 start npm --name dam-backend --cwd /var/www/dam-backend -- start
+            fi
+            pm2 save
+
+            sleep 2
+            curl -sf http://127.0.0.1:3000/health | head -c 200
+            echo
+            echo "Deploy OK → $(git rev-parse --short HEAD)"

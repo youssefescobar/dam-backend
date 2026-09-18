@@ -52,22 +52,14 @@ npx web-push generate-vapid-keys
 - `POST/PUT/DELETE /kb` · `POST /kb/import` (admin JWT — CSV or JSON entries)
 - `POST /chat/message`
 - `POST /push/subscribe` · `POST /push/unsubscribe` · `GET /push/vapid-public-key`
-- Customer chat widget (1:1 for main site): `/widget/`
 
 Socket events: `chat:message` (public), `join:admin-queue` / `admin:claim` / `admin:message` (**admin JWT** via `auth.token`), `conversation:escalated`, `conversation:closed`, `quote:new`.
 
-### Chat widget (portable)
+## Deploy (GitHub Actions → DigitalOcean Droplet)
 
-Drop these onto the main website later:
+Push to `master` / `main` runs [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml): SSH into the droplet, `git pull`, `npm ci`, `pm2 restart`.
 
-- [`public/widget/chat-widget.js`](public/widget/chat-widget.js)
-- [`public/widget/chat-widget.css`](public/widget/chat-widget.css)
-
-```html
-<link rel="stylesheet" href="/widget/chat-widget.css" />
-<script src="/widget/chat-widget.js"></script>
-<script>DamicChat.mount({ apiBase: 'https://YOUR-API', mode: 'floating' });</script>
-```
+Required GitHub repo secrets: `DROPLET_HOST`, `DROPLET_USER`, `DROPLET_SSH_KEY`.
 
 ## Postman
 

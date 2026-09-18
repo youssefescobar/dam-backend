@@ -1,4 +1,6 @@
 import http from 'http';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
 import { loadEnv } from './config/env.js';
 import { connectDb } from './config/db.js';
@@ -39,11 +41,21 @@ export async function boot(options = {}) {
   return { app, server, io, env };
 }
 
-const isMain =
-  process.argv[1] &&
-  (process.argv[1].endsWith('server.js') || process.argv[1].includes('server.js'));
+/** True when this file is the process entry (node or PM2), not when imported by tests. */
+function shouldAutoBoot() {
+  if (process.env.NODE_ENV === 'test') return false;
+  // PM2 sets pm_id on managed processes
+  if (process.env.pm_id != null) return true;
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return path.resolve(entry) === fileURLToPath(import.meta.url);
+  } catch {
+    return entry.includes('server.js');
+  }
+}
 
-if (isMain && process.env.NODE_ENV !== 'test') {
+if (shouldAutoBoot()) {
   boot().catch((err) => {
     console.error(err.message || err);
     process.exit(1);

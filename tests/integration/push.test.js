@@ -140,13 +140,3 @@ describe('Push notifications (Phase 5)', () => {
     expect(sent).toHaveLength(1);
   });
 });
-
-describe('Widget static assets', () => {
-  it('serves customer chat widget assets', async () => {
-    const app = createApp();
-    const css = await request(app).get('/widget/chat-widget.css');
-    expect(css.status).toBe(200);
-    const page = await request(app).get('/widget/');
-    expect(page.status).toBe(200);
-  });
-});

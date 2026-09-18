@@ -1,8 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { errorHandler } from './middleware/errorHandler.js';
 import healthRouter from './routes/health.js';
 import authRouter from './routes/auth.js';
@@ -11,8 +9,6 @@ import kbRouter from './routes/kb.js';
 import chatRouter from './routes/chat.js';
 import pushRouter from './routes/push.js';
 import conversationsRouter from './routes/conversations.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Create Express application (no listen / no DB connect).
@@ -36,9 +32,6 @@ export function createApp(options = {}) {
   app.use('/chat', chatRouter);
   app.use('/push', pushRouter);
   app.use('/conversations', conversationsRouter);
-
-  // Portable customer chat widget
-  app.use('/widget', express.static(path.join(__dirname, '../public/widget')));
 
   app.use(errorHandler);
 
