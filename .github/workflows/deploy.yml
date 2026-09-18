@@ -50,7 +50,20 @@ jobs:
             fi
             pm2 save
 
-            sleep 2
-            curl -sf http://127.0.0.1:3000/health | head -c 200
-            echo
+            # App needs a few seconds for Mongo + listen; curl exit 7 = not up yet
+            ok=0
+            for i in $(seq 1 30); do
+              if curl -sf --max-time 3 http://127.0.0.1:3000/health >/tmp/dam-health.json; then
+                ok=1
+                break
+              fi
+              echo "Waiting for /health (attempt $i/30)…"
+              sleep 2
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "Health check failed after restart"
+              pm2 logs dam-backend --lines 40 --nostream || true
+              exit 1
+            fi
+            head -c 200 /tmp/dam-health.json; echo
             echo "Deploy OK → $(git rev-parse --short HEAD)"
