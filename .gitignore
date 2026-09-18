@@ -9,3 +9,6 @@ dist/
 # Hugging Face / ONNX model downloads (not Mongoose src/models)
 **/hf-models/
 **/.huggingface/
+# Deploy SSH keys — never commit
+dam-backend-deploy
+dam-backend-deploy.pub
