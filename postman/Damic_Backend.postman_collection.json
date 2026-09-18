@@ -1,0 +1,805 @@
+{
+  "info": {
+    "_postman_id": "damic-backend-collection-001",
+    "name": "Damic Backend",
+    "description": "Complete HTTP API collection for the Damic transportation backend.\n\n**Setup**\n1. Set `baseUrl` (default `http://127.0.0.1:3000`).\n2. Run **Auth → Login** — the test script saves `token` automatically.\n3. Run quote/KB/chat flows; IDs are saved into collection variables when responses succeed.\n\n**Auth**\nAdmin routes use `Authorization: Bearer {{token}}`.\n\n**Socket.io** (not in Postman):\n- `chat:message`, `join:admin-queue`, `admin:claim`, `admin:message`\n- Events: `message:new`, `conversation:escalated`, `quote:new`, `conversation:claimed`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:3000" },
+    { "key": "token", "value": "" },
+    { "key": "adminEmail", "value": "admin@damic.local" },
+    { "key": "adminPassword", "value": "changeme123" },
+    { "key": "quoteId", "value": "" },
+    { "key": "conversationId", "value": "" },
+    { "key": "kbId", "value": "" },
+    { "key": "customerContact", "value": "jordan@example.com" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health",
+            "description": "Full system health: database, sockets, embeddings, LLM keys, Web Push.\n\nOverall `status`: `ok` | `degraded` | `error` (HTTP 503 if error)."
+          },
+          "response": [
+            {
+              "name": "OK / degraded",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/health"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"status\": \"ok\",\n  \"uptimeSeconds\": 42,\n  \"timestamp\": \"2026-09-18T15:00:00.000Z\",\n  \"checks\": {\n    \"database\": { \"status\": \"ok\", \"readyState\": 1, \"detail\": \"connected\" },\n    \"sockets\": { \"status\": \"ok\", \"initialized\": true, \"connections\": 2, \"detail\": \"Socket.io ready\" },\n    \"embeddings\": { \"status\": \"idle\", \"model\": \"Xenova/all-MiniLM-L6-v2\", \"loaded\": false, \"detail\": \"Model not loaded yet\" },\n    \"llm\": { \"status\": \"ok\", \"providers\": { \"groq\": { \"configured\": true, \"reachable\": null }, \"gemini\": { \"configured\": false, \"reachable\": null } } },\n    \"push\": { \"status\": \"ok\", \"vapidConfigured\": true, \"ready\": true }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Health (deep probe)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health?deep=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"],
+              "query": [
+                {
+                  "key": "deep",
+                  "value": "1",
+                  "description": "Warm embeddings + ping Groq/Gemini APIs"
+                }
+              ]
+            },
+            "description": "Deep health: runs a tiny embedding and pings configured LLM providers. Slower; may load the MiniLM model on first call."
+          },
+          "response": [
+            {
+              "name": "Deep OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"status\": \"ok\",\n  \"checks\": {\n    \"embeddings\": { \"status\": \"ok\", \"loaded\": true, \"dimensions\": 384 },\n    \"llm\": { \"status\": \"ok\", \"providers\": { \"groq\": { \"configured\": true, \"reachable\": true } } }\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.token) {",
+                  "    pm.collectionVariables.set('token', data.token);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Admin login. Returns JWT. On success, saves `token` to collection variables.\n\nSeed default (after `npm run seed:admin`): `admin@damic.local` / `changeme123`."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"admin@damic.local\",\n  \"password\": \"changeme123\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"admin\": {\n    \"id\": \"66f000000000000000000001\",\n    \"name\": \"Admin\",\n    \"email\": \"admin@damic.local\",\n    \"role\": \"admin\"\n  }\n}"
+            },
+            {
+              "name": "Invalid credentials",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"admin@damic.local\",\n  \"password\": \"wrong\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"Invalid email or password\"\n}"
+            },
+            {
+              "name": "Validation error",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"not-an-email\",\n  \"password\": \"\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"Validation failed\",\n  \"fields\": {\n    \"email\": \"Invalid email\",\n    \"password\": \"Too small: expected string to have >=1 characters\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Quotes",
+      "item": [
+        {
+          "name": "Create quote (public)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.quote && data.quote._id) pm.collectionVariables.set('quoteId', data.quote._id);",
+                  "  if (data.conversationId) pm.collectionVariables.set('conversationId', data.conversationId);",
+                  "  if (data.quote && data.quote.customerContact) pm.collectionVariables.set('customerContact', data.quote.customerContact);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerName\": \"Jordan Lee\",\n  \"customerContact\": \"jordan@example.com\",\n  \"pickup\": \"JFK Airport\",\n  \"dropoff\": \"Manhattan Hotel\",\n  \"date\": \"2026-12-15T14:00:00.000Z\",\n  \"vehicleType\": \"sprinter\",\n  \"passengers\": 8,\n  \"notes\": \"Flight AA100\",\n  \"channel\": \"web\"\n}"
+            },
+            "url": "{{baseUrl}}/quotes",
+            "description": "Public quote request. Creates Customer + Conversation + Quote.\n\nSaves `quoteId`, `conversationId`, `customerContact`.\n\nOptional `channel`: `web` | `whatsapp` | `phone` | `other`."
+          },
+          "response": [
+            {
+              "name": "Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customerName\": \"Jordan Lee\",\n  \"customerContact\": \"jordan@example.com\",\n  \"pickup\": \"JFK Airport\",\n  \"dropoff\": \"Manhattan Hotel\",\n  \"date\": \"2026-12-15T14:00:00.000Z\",\n  \"vehicleType\": \"sprinter\",\n  \"passengers\": 8,\n  \"notes\": \"Flight AA100\",\n  \"channel\": \"web\"\n}"
+                },
+                "url": "{{baseUrl}}/quotes"
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"quote\": {\n    \"_id\": \"66f000000000000000000010\",\n    \"customerId\": \"66f000000000000000000011\",\n    \"conversationId\": \"66f000000000000000000012\",\n    \"pickup\": \"JFK Airport\",\n    \"dropoff\": \"Manhattan Hotel\",\n    \"date\": \"2026-12-15T14:00:00.000Z\",\n    \"vehicleType\": \"sprinter\",\n    \"passengers\": 8,\n    \"notes\": \"Flight AA100\",\n    \"status\": \"new\",\n    \"quotedPrice\": null,\n    \"customerName\": \"Jordan Lee\",\n    \"customerContact\": \"jordan@example.com\"\n  },\n  \"conversationId\": \"66f000000000000000000012\"\n}"
+            },
+            {
+              "name": "Missing fields",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customerName\": \"Jordan Lee\"\n}"
+                },
+                "url": "{{baseUrl}}/quotes"
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"Validation failed\",\n  \"fields\": {\n    \"customerContact\": \"customerContact is required\",\n    \"pickup\": \"pickup is required\",\n    \"dropoff\": \"dropoff is required\",\n    \"date\": \"Invalid input\",\n    \"vehicleType\": \"vehicleType is required\",\n    \"passengers\": \"Invalid input\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List quotes (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/quotes",
+              "host": ["{{baseUrl}}"],
+              "path": ["quotes"]
+            },
+            "description": "List all quotes (newest first). Requires admin JWT."
+          },
+          "response": [
+            {
+              "name": "OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"quotes\": [\n    {\n      \"_id\": \"66f000000000000000000010\",\n      \"pickup\": \"JFK Airport\",\n      \"dropoff\": \"Manhattan Hotel\",\n      \"status\": \"new\",\n      \"quotedPrice\": null,\n      \"customerName\": \"Jordan Lee\"\n    }\n  ]\n}"
+            },
+            {
+              "name": "Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"Authentication required\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List quotes by status (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/quotes?status=new",
+              "host": ["{{baseUrl}}"],
+              "path": ["quotes"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "new",
+                  "description": "One of: new | quoted | won | lost"
+                }
+              ]
+            },
+            "description": "Filter quotes by status."
+          },
+          "response": [
+            {
+              "name": "Filtered new",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"quotes\": [\n    {\n      \"_id\": \"66f000000000000000000010\",\n      \"status\": \"new\",\n      \"customerName\": \"Jordan Lee\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update quote — set price / quoted (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"quoted\",\n  \"quotedPrice\": 275\n}"
+            },
+            "url": "{{baseUrl}}/quotes/{{quoteId}}",
+            "description": "Update quote status and/or price.\n\nWhen `status` is `quoted` and `quotedPrice` is set, a system message with the price is posted to the linked conversation.\n\nAllowed status: `new` | `quoted` | `won` | `lost`."
+          },
+          "response": [
+            {
+              "name": "Quoted",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"quote\": {\n    \"_id\": \"66f000000000000000000010\",\n    \"status\": \"quoted\",\n    \"quotedPrice\": 275,\n    \"conversationId\": \"66f000000000000000000012\"\n  }\n}"
+            },
+            {
+              "name": "Not found",
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"Quote not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update quote — mark won (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"won\",\n  \"notes\": \"Customer accepted via phone\"\n}"
+            },
+            "url": "{{baseUrl}}/quotes/{{quoteId}}",
+            "description": "Mark quote as won (or lost) with optional notes."
+          },
+          "response": [
+            {
+              "name": "Won",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"quote\": {\n    \"_id\": \"66f000000000000000000010\",\n    \"status\": \"won\",\n    \"quotedPrice\": 275,\n    \"notes\": \"Customer accepted via phone\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update quote — mark lost (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"lost\",\n  \"notes\": \"Chose another provider\"\n}"
+            },
+            "url": "{{baseUrl}}/quotes/{{quoteId}}"
+          },
+          "response": [
+            {
+              "name": "Lost",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"quote\": {\n    \"_id\": \"66f000000000000000000010\",\n    \"status\": \"lost\",\n    \"notes\": \"Chose another provider\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Knowledge Base",
+      "item": [
+        {
+          "name": "Create KB entry (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.entry && data.entry._id) pm.collectionVariables.set('kbId', data.entry._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Airport transfer fares\",\n  \"content\": \"Airport transfers start at $50 for a sedan. Sprinter vans start at $120. Night surcharge of 20% applies between 11pm and 5am. We serve JFK, LGA, and EWR.\"\n}"
+            },
+            "url": "{{baseUrl}}/kb",
+            "description": "Create a knowledge base entry. Content is chunked and embedded automatically (may take a few seconds on first model load)."
+          },
+          "response": [
+            {
+              "name": "Created",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"entry\": {\n    \"_id\": \"66f000000000000000000020\",\n    \"title\": \"Airport transfer fares\",\n    \"content\": \"Airport transfers start at $50...\",\n    \"chunks\": [\n      {\n        \"text\": \"Airport transfer fares\\n\\nAirport transfers start at $50...\",\n        \"embedding\": [0.01, -0.02]\n      }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create KB entry — hours example (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.entry && data.entry._id) pm.collectionVariables.set('kbId', data.entry._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Business hours\",\n  \"content\": \"We are open Monday through Friday, 8am to 8pm Eastern Time. Weekend dispatch is available for booked transfers only. For emergencies call our 24/7 hotline.\"\n}"
+            },
+            "url": "{{baseUrl}}/kb"
+          },
+          "response": [
+            {
+              "name": "Created",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"entry\": {\n    \"_id\": \"66f000000000000000000021\",\n    \"title\": \"Business hours\",\n    \"content\": \"We are open Monday through Friday...\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List KB entries (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/kb",
+            "description": "List KB entries (embeddings omitted from chunk payloads for readability)."
+          },
+          "response": [
+            {
+              "name": "OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"entries\": [\n    {\n      \"_id\": \"66f000000000000000000020\",\n      \"title\": \"Airport transfer fares\",\n      \"content\": \"Airport transfers start at $50...\",\n      \"chunks\": [{ \"text\": \"...\" }]\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update KB entry (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Airport transfer fares\",\n  \"content\": \"Airport transfers start at $55 for a sedan (updated). Sprinter vans start at $130. Night surcharge of 20% applies between 11pm and 5am.\"\n}"
+            },
+            "url": "{{baseUrl}}/kb/{{kbId}}",
+            "description": "Replace title/content and re-embed all chunks."
+          },
+          "response": [
+            {
+              "name": "Updated",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"entry\": {\n    \"_id\": \"66f000000000000000000020\",\n    \"title\": \"Airport transfer fares\",\n    \"content\": \"Airport transfers start at $55...\"\n  }\n}"
+            },
+            {
+              "name": "Not found",
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"Knowledge base entry not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete KB entry (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/kb/{{kbId}}",
+            "description": "Delete KB entry and its chunk embeddings. Returns 204 No Content."
+          },
+          "response": [
+            {
+              "name": "Deleted",
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": [],
+              "body": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "item": [
+        {
+          "name": "Ask question (RAG answer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.conversationId) pm.collectionVariables.set('conversationId', data.conversationId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"How much is an airport transfer?\",\n  \"customerName\": \"Sam Rivera\",\n  \"customerContact\": \"sam@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/chat/message",
+            "description": "Customer chat message. Runs RAG + LLM.\n\nRequires KB content + LLM key (`GROQ_API_KEY` or `GEMINI_API_KEY`) for a real answer.\n\nSaves `conversationId` for follow-ups."
+          },
+          "response": [
+            {
+              "name": "AI answered",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"conversationId\": \"66f000000000000000000030\",\n  \"status\": \"ai_handling\",\n  \"escalated\": false,\n  \"answer\": \"Airport transfers start at $50 for a sedan.\",\n  \"reason\": null,\n  \"systemMessage\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Follow-up in same conversation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Do you serve EWR as well?\",\n  \"conversationId\": \"{{conversationId}}\",\n  \"customerContact\": \"sam@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/chat/message",
+            "description": "Continue an existing conversation by passing `conversationId`."
+          },
+          "response": [
+            {
+              "name": "Follow-up answered",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"conversationId\": \"66f000000000000000000030\",\n  \"status\": \"ai_handling\",\n  \"escalated\": false,\n  \"answer\": \"Yes, we serve JFK, LGA, and EWR.\",\n  \"reason\": null,\n  \"systemMessage\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Ask unrelated — expect escalation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.conversationId) pm.collectionVariables.set('conversationId', data.conversationId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"What is the capital of Mars and who invented pizza?\",\n  \"customerName\": \"Alex\",\n  \"customerContact\": \"alex-unrelated@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/chat/message",
+            "description": "Low similarity / no useful context → escalates to `needs_human` (no hallucinated answer)."
+          },
+          "response": [
+            {
+              "name": "Escalated — low similarity",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"conversationId\": \"66f000000000000000000031\",\n  \"status\": \"needs_human\",\n  \"escalated\": true,\n  \"answer\": null,\n  \"reason\": \"low_similarity\",\n  \"systemMessage\": \"I'm connecting you with a team member who can help. Someone will be with you shortly.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Request human agent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.conversationId) pm.collectionVariables.set('conversationId', data.conversationId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"I want to talk to a human please\",\n  \"customerName\": \"Casey\",\n  \"customerContact\": \"casey@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/chat/message",
+            "description": "Explicit human request always escalates (`reason: explicit_human_request`)."
+          },
+          "response": [
+            {
+              "name": "Escalated — human request",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"conversationId\": \"66f000000000000000000032\",\n  \"status\": \"needs_human\",\n  \"escalated\": true,\n  \"answer\": null,\n  \"reason\": \"explicit_human_request\",\n  \"systemMessage\": \"I'm connecting you with a team member who can help. Someone will be with you shortly.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Empty body — validation error",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"\"\n}"
+            },
+            "url": "{{baseUrl}}/chat/message"
+          },
+          "response": [
+            {
+              "name": "Validation failed",
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"Validation failed\",\n  \"fields\": {\n    \"text\": \"text is required\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Push",
+      "item": [
+        {
+          "name": "Get VAPID public key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/push/vapid-public-key",
+            "description": "Public endpoint used by admin clients to subscribe to Web Push."
+          },
+          "response": [
+            {
+              "name": "OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"publicKey\": \"BEl62iUYgUivxIkv69yViEuiBIa...\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Subscribe push (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/example-subscription-id\",\n  \"keys\": {\n    \"p256dh\": \"BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTsFwQIHxrCBWPJDFNQ\",\n    \"auth\": \"tBHItJI5svbpez7KI4CCXg\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/push/subscribe",
+            "description": "Register a browser push subscription for the logged-in admin.\n\nIn production these values come from `PushManager.subscribe()` in an admin client — the body below is a structural example only."
+          },
+          "response": [
+            {
+              "name": "Subscribed",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"ok\": true,\n  \"subscriptionCount\": 1\n}"
+            },
+            {
+              "name": "Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"Authentication required\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Suggested flows",
+      "item": [
+        {
+          "name": "Flow A — Quote lifecycle",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health",
+            "description": "**Manual folder order (run top → bottom):**\n\n1. Auth → Login\n2. Quotes → Create quote (public)\n3. Quotes → List quotes by status (admin) — `status=new`\n4. Quotes → Update quote — set price / quoted\n5. (Optional) Quotes → Update quote — mark won\n\nAfter step 4, the linked conversation gets a system message with the quoted price."
+          },
+          "response": []
+        },
+        {
+          "name": "Flow B — RAG chat",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health",
+            "description": "**Manual folder order:**\n\n1. Auth → Login\n2. Knowledge Base → Create KB entry (admin) — fares\n3. Knowledge Base → Create KB entry — hours example\n4. Chat → Ask question (RAG answer)\n5. Chat → Follow-up in same conversation\n6. Chat → Ask unrelated — expect escalation\n7. Chat → Request human agent\n\nNeeds `GROQ_API_KEY` or `GEMINI_API_KEY` in `.env` for real LLM answers."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

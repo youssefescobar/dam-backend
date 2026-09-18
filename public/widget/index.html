@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Damic chat widget</title>
+    <link rel="stylesheet" href="/widget/chat-widget.css" />
+  </head>
+  <body>
+    <p style="font-family: system-ui; padding: 2rem">
+      Widget demo page — the floating chat should appear bottom-right.
+    </p>
+    <script src="/widget/chat-widget.js"></script>
+    <script>
+      DamicChat.mount({ apiBase: '', mode: 'floating' });
+    </script>
+  </body>
+</html>
