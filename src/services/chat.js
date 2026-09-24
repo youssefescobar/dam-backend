@@ -106,7 +106,7 @@ export async function handleChatMessage(input) {
   if (!faqEntries.length) {
     return replyAi(
       conversation,
-      "I don't have enough info in my knowledge base for that yet. Please pick an option below, or ask to talk to a human.",
+      "I don’t have that yet — pick an option below, or ask to talk to a human.",
       { reason: 'empty_kb', options: MAIN_MENU_OPTIONS },
     );
   }
@@ -121,7 +121,7 @@ export async function handleChatMessage(input) {
     // Soft-fail: do not escalate — that locks the conversation and blocks all future AI.
     return replyAi(
       conversation,
-      "I'm having trouble reaching the AI right now. Please pick a menu option below, try again in a moment, or ask to talk to a human.",
+      "Sorry, I’m a bit stuck right now. Try a menu option, wait a moment, or ask for a human.",
       {
         reason: 'llm_failure',
         options: MAIN_MENU_OPTIONS,
@@ -142,7 +142,21 @@ export async function handleChatMessage(input) {
   });
 }
 
+function replyDelayMs() {
+  if (process.env.NODE_ENV === 'test') return 0;
+  const configured = Number(process.env.CHAT_REPLY_DELAY_MS);
+  if (Number.isFinite(configured) && configured >= 0) return configured;
+  // Slight pause so replies feel human (not instant)
+  return 900 + Math.floor(Math.random() * 700);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function replyAi(conversation, answer, extra = {}) {
+  await sleep(replyDelayMs());
+
   await Message.create({
     conversationId: conversation._id,
     sender: 'ai',
@@ -202,7 +216,7 @@ async function escalate(conversation, reason, detail) {
   await conversation.save();
 
   const notice =
-    "I'm connecting you with a team member who can help. Someone will be with you shortly.";
+    "I'm connecting you with a teammate now — someone will be with you shortly.";
 
   await Message.create({
     conversationId: conversation._id,

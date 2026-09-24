@@ -18,45 +18,44 @@ export const MAIN_MENU_OPTIONS = [
 export const GUIDED_NODES = {
   about: {
     answer:
-      'Durrah Al Munawwara Transport (شركة درة المنورة للنقل) is a Saudi transportation and logistics company established in 2014. We run Hajj & Umrah pilgrim shuttles, international bus routes, and daily worker/corporate transfers, supported by live fleet tracking.',
+      'We’re Durrah Al Munawwara Transport — Saudi logistics since 2014. Hajj & Umrah shuttles, international buses, and daily worker transfers with live fleet tracking.',
     options: 'main',
   },
   hours: {
     answer:
-      'Customer support is typically available Saturday–Thursday, 8:00 AM–8:00 PM Saudi time (AST). During peak Hajj/Umrah seasons, operations may run extended hours.',
+      'We’re usually here Saturday–Thursday, 8 AM–8 PM Saudi time. Peak Hajj/Umrah seasons may run longer hours.',
     options: 'main',
   },
   airport: {
     answer:
-      'Yes — we provide airport and city transfers. Pricing depends on pickup/dropoff, vehicle type, and passengers. Use “How to get a quote” or type your trip details.',
+      'Yes — airport and city transfers are available. Price depends on route, vehicle, and passengers. Tap “How to get a quote” or share your trip details.',
     options: 'main',
   },
   hajj: {
     answer:
-      'We operate large bus fleets for Hajj & Umrah, including disability-friendly vehicles, shuttling pilgrims between accommodations and the Grand Mosque in Makkah. We also partner with international Hajj missions for high-volume movement.',
+      'We run large Hajj & Umrah fleets (including accessible buses) between hotels and the Grand Mosque, and partner with international missions for big groups.',
     options: 'main',
   },
   workers: {
     answer:
-      'Our Worker Transfer (نقل العمال) division handles daily commuting for corporate clients — moving employees between residences and job sites on scheduled routes.',
+      'Our Worker Transfer team moves employees daily between homes and job sites on scheduled corporate routes.',
     options: 'main',
   },
   international: {
     answer:
-      'We run daily long-haul international bus services connecting Saudi Arabia with regions across Yemen, using recent-model coaches.',
+      'We operate daily long-haul coaches linking Saudi Arabia with regions across Yemen.',
     options: 'main',
   },
   quote: {
     answer:
-      'To get a quote, send: customer name, contact, pickup, dropoff, trip date, vehicle type, and number of passengers. You can type that here, or an admin can create it from the Quotes screen.',
+      'Happy to quote you — send name, contact, pickup, dropoff, date, vehicle type, and passenger count.',
     options: 'main',
   },
   human: {
     escalate: true,
   },
   free_text: {
-    answer:
-      'Sure — type your question below. I will search our knowledge base and answer when I can.',
+    answer: 'Of course — type your question below and I’ll do my best to help.',
     options: [],
     freeText: true,
   },
@@ -89,8 +88,5 @@ export function getWelcomePayload() {
 }
 
 export function greetingWelcome() {
-  return (
-    "Hello! I'm the Durrah Al Munawwara guided assistant. " +
-    'Pick an option below, or choose “Type my own question” to ask freely.'
-  );
+  return "Hi! Welcome to Durrah Al Munawwara. Pick a topic below, or type your own question anytime.";
 }

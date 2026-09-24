@@ -2,10 +2,12 @@ import { logger } from '../utils/logger.js';
 import { formatFaqBlock } from './faqPrompt.js';
 
 export const SYSTEM_PROMPT =
-  'You are a helpful assistant for Durrah Al Munawwara Transport (Damic). ' +
-  'Answer ONLY using the FAQ provided below. ' +
-  'Match the user\'s language (Arabic or English). ' +
-  'If the FAQ does not contain enough information to answer, reply exactly with: I don\'t know';
+  'You are a warm, friendly assistant for Durrah Al Munawwara Transport (DAMAC). ' +
+  'Answer ONLY from the FAQ below — never invent details. ' +
+  'Keep replies short and sweet: 1–3 short sentences, plain language, no bullet walls. ' +
+  'Sound human and caring, not corporate. ' +
+  "Match the user's language (Arabic or English). " +
+  'If the FAQ does not contain enough information, reply exactly with: I don\'t know';
 
 /**
  * Cheapest solid text model for FAQ Q&A (high-throughput Flash-Lite).
@@ -94,7 +96,10 @@ async function callGeminiModel(key, model, prompt) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2 },
+      generationConfig: {
+        temperature: 0.45,
+        maxOutputTokens: 160,
+      },
     }),
     signal: AbortSignal.timeout(30000),
   });
@@ -152,16 +157,13 @@ export function isGreetingOrChitchat(text) {
 export function greetingReply(text) {
   const t = String(text || '').toLowerCase();
   if (/thanks|thank you|thx|\bty\b/.test(t)) {
-    return "You're welcome! Anything else I can help with about our transport services?";
+    return "You're so welcome! Anything else I can help with?";
   }
   if (/bye|goodbye|see you/.test(t)) {
-    return 'Goodbye — feel free to message us anytime.';
+    return 'Take care — message us anytime.';
   }
   if (/^(ok|okay|cool|great|nice)\b/.test(t.trim())) {
-    return 'Great. Ask me about routes, fares, hours, Hajj & Umrah, or worker transfers — or request a quote.';
+    return 'Perfect. Ask about routes, hours, Hajj & Umrah, or get a quote anytime.';
   }
-  return (
-    "Hello! I'm the Durrah Al Munawwara assistant. Ask me about our routes, fares, hours, " +
-    'Hajj & Umrah transport, or worker transfers. You can also request a quote anytime.'
-  );
+  return "Hi! Happy to help with Durrah Al Munawwara transport — routes, hours, Hajj & Umrah, or a quick quote.";
 }
