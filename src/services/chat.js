@@ -55,6 +55,12 @@ export async function handleChatMessage(input) {
     text: text || choiceId,
   });
 
+  emitToConversation(conversation._id.toString(), 'message:new', {
+    sender: 'customer',
+    text: text || choiceId,
+    conversationId: conversation._id.toString(),
+  });
+
   // Already with a human — don't run AI
   if (conversation.status === 'claimed' || conversation.status === 'needs_human') {
     return {
@@ -188,6 +194,12 @@ async function escalate(conversation, reason, detail) {
     conversationId: conversation._id,
     sender: 'system',
     text: notice,
+  });
+
+  emitToConversation(conversation._id.toString(), 'message:new', {
+    sender: 'system',
+    text: notice,
+    conversationId: conversation._id.toString(),
   });
 
   const payload = {

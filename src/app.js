@@ -11,16 +11,42 @@ import pushRouter from './routes/push.js';
 import conversationsRouter from './routes/conversations.js';
 
 /**
+ * CORS_ORIGIN may be `*`, a single origin, or a comma-separated list.
+ * @param {string | undefined} raw
+ */
+function resolveCorsOrigin(raw) {
+  const value = (raw || '*').trim();
+  if (!value || value === '*') return true;
+
+  const allowed = value.split(',').map((item) => item.trim()).filter(Boolean);
+  if (allowed.length === 1) return allowed[0];
+
+  return (origin, callback) => {
+    if (!origin || allowed.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error(`CORS blocked for origin: ${origin}`));
+  };
+}
+
+/**
  * Create Express application (no listen / no DB connect).
  * @param {{ corsOrigin?: string }} [options]
  */
 export function createApp(options = {}) {
   const app = express();
 
-  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      // Public API must be readable by the marketing site / admin on other origins.
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+  );
   app.use(
     cors({
-      origin: options.corsOrigin || process.env.CORS_ORIGIN || '*',
+      origin: resolveCorsOrigin(options.corsOrigin || process.env.CORS_ORIGIN),
     })
   );
   app.use(express.json({ limit: '1mb' }));

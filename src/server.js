@@ -24,7 +24,14 @@ export async function boot(options = {}) {
   const server = http.createServer(app);
 
   const io = new Server(server, {
-    cors: { origin: env.corsOrigin || '*' },
+    cors: {
+      origin: (() => {
+        const raw = (env.corsOrigin || '*').trim();
+        if (!raw || raw === '*') return true;
+        const list = raw.split(',').map((item) => item.trim()).filter(Boolean);
+        return list.length === 1 ? list[0] : list;
+      })(),
+    },
   });
   initChatSockets(io);
   initPush();
