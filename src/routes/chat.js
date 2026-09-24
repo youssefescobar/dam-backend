@@ -52,6 +52,7 @@ router.post('/message', chatLimiter, validateBody(messageSchema), async (req, re
       reason: result.reason || null,
       systemMessage: result.systemMessage || null,
       options: result.options || [],
+      detail: result.detail || null,
     });
   } catch (err) {
     next(err);

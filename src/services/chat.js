@@ -104,7 +104,11 @@ export async function handleChatMessage(input) {
   }
 
   if (!faqEntries.length) {
-    return escalate(conversation, 'empty_kb');
+    return replyAi(
+      conversation,
+      "I don't have enough info in my knowledge base for that yet. Please pick an option below, or ask to talk to a human.",
+      { reason: 'empty_kb', options: MAIN_MENU_OPTIONS },
+    );
   }
 
   let llmResult;
@@ -114,7 +118,16 @@ export async function handleChatMessage(input) {
       faqEntries,
     });
   } catch (err) {
-    return escalate(conversation, 'llm_failure', err.message);
+    // Soft-fail: do not escalate — that locks the conversation and blocks all future AI.
+    return replyAi(
+      conversation,
+      "I'm having trouble reaching the AI right now. Please pick a menu option below, try again in a moment, or ask to talk to a human.",
+      {
+        reason: 'llm_failure',
+        options: MAIN_MENU_OPTIONS,
+        detail: err.message,
+      },
+    );
   }
 
   if (looksLikeDontKnow(llmResult.answer)) {
@@ -149,6 +162,7 @@ async function replyAi(conversation, answer, extra = {}) {
     reason: extra.reason || null,
     provider: extra.provider,
     faqCount: extra.faqCount,
+    detail: extra.detail || null,
   };
 }
 

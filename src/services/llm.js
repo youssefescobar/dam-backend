@@ -7,6 +7,14 @@ export const SYSTEM_PROMPT =
   'Match the user\'s language (Arabic or English). ' +
   'If the FAQ does not contain enough information to answer, reply exactly with: I don\'t know';
 
+/** Prefer lite/current Flash IDs — older gemini-2.x IDs return 404. */
+const GEMINI_MODELS = [
+  process.env.GEMINI_MODEL,
+  'gemini-3.5-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3.8-flash',
+].filter(Boolean);
+
 /** @type {((prompt: { question: string, context: string }) => Promise<string>) | null} */
 let llmOverride = null;
 
@@ -19,7 +27,7 @@ export function resetLlmOverride() {
 }
 
 /**
- * Call Groq (primary) or Gemini (fallback) with the full FAQ injected.
+ * Call Gemini (primary when Groq is down) or Groq with the full FAQ injected.
  * @param {{
  *   question: string,
  *   faqEntries?: { title: string, content: string }[],
@@ -38,22 +46,24 @@ export async function generateAnswer(input) {
 
   const errors = [];
 
-  if (process.env.GROQ_API_KEY) {
-    try {
-      const answer = await callGroq(input.question, context);
-      return { answer, provider: 'groq' };
-    } catch (err) {
-      logger.warn({ err: err.message }, 'Groq failed, trying Gemini');
-      errors.push(err);
-    }
-  }
-
+  // Prefer Gemini first: Groq free-tier keys often go stale; health ping can still
+  // look "ok" while chat completions fail with 401.
   if (process.env.GEMINI_API_KEY) {
     try {
       const answer = await callGemini(input.question, context);
       return { answer, provider: 'gemini' };
     } catch (err) {
-      logger.warn({ err: err.message }, 'Gemini failed');
+      logger.warn({ err: err.message }, 'Gemini failed, trying Groq');
+      errors.push(err);
+    }
+  }
+
+  if (process.env.GROQ_API_KEY) {
+    try {
+      const answer = await callGroq(input.question, context);
+      return { answer, provider: 'groq' };
+    } catch (err) {
+      logger.warn({ err: err.message }, 'Groq failed');
       errors.push(err);
     }
   }
@@ -72,7 +82,7 @@ async function callGroq(question, context) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
       temperature: 0.2,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -96,20 +106,33 @@ async function callGroq(question, context) {
 
 async function callGemini(question, context) {
   const key = process.env.GEMINI_API_KEY;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+  const prompt = `${SYSTEM_PROMPT}\n\nFAQ:\n${context}\n\nQuestion: ${question}`;
+  const errors = [];
+
+  for (const model of GEMINI_MODELS) {
+    try {
+      const answer = await callGeminiModel(key, model, prompt);
+      return answer;
+    } catch (err) {
+      logger.warn({ model, err: err.message }, 'Gemini model failed');
+      errors.push(err);
+      // Auth / quota: don't burn through the list
+      if (/HTTP 401|HTTP 403|HTTP 429/.test(err.message)) break;
+    }
+  }
+
+  throw new Error(
+    errors.map((e) => e.message).join('; ') || 'Gemini unavailable',
+  );
+}
+
+async function callGeminiModel(key, model, prompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              text: `${SYSTEM_PROMPT}\n\nFAQ:\n${context}\n\nQuestion: ${question}`,
-            },
-          ],
-        },
-      ],
+      contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.2 },
     }),
     signal: AbortSignal.timeout(30000),
@@ -117,7 +140,7 @@ async function callGemini(question, context) {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Gemini HTTP ${res.status}: ${body.slice(0, 200)}`);
+    throw new Error(`Gemini ${model} HTTP ${res.status}: ${body.slice(0, 200)}`);
   }
 
   const data = await res.json();

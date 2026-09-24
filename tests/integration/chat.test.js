@@ -69,7 +69,7 @@ describe('POST /chat/message (FAQ prompt)', () => {
     expect(res.body.reason).toBe('model_uncertain');
   });
 
-  it('escalates immediately when knowledge base is empty', async () => {
+  it('soft-fails when knowledge base is empty without locking', async () => {
     setLlmOverride(async () => 'nope');
 
     const res = await request(app).post('/chat/message').send({
@@ -77,9 +77,11 @@ describe('POST /chat/message (FAQ prompt)', () => {
       customerContact: 'empty@test.com',
     });
 
-    expect(res.body.escalated).toBe(true);
+    expect(res.status).toBe(200);
+    expect(res.body.escalated).toBe(false);
     expect(res.body.reason).toBe('empty_kb');
-    expect(res.body.answer).toBeNull();
+    expect(res.body.answer).toMatch(/knowledge|menu|human/i);
+    expect(res.body.status).toBe('ai_handling');
   });
 
   it('escalates when customer asks to talk to a human', async () => {
@@ -132,7 +134,7 @@ describe('POST /chat/message (FAQ prompt)', () => {
     expect(res.body.options?.some((o) => o.id === 'about')).toBe(true);
   });
 
-  it('escalates gracefully when LLM fails', async () => {
+  it('soft-fails when LLM fails without locking the conversation', async () => {
     await KnowledgeBaseEntry.create({
       title: 'Hours',
       content: 'Open 9-5',
@@ -146,11 +148,14 @@ describe('POST /chat/message (FAQ prompt)', () => {
       customerContact: 'llm@test.com',
     });
 
-    expect(res.body.escalated).toBe(true);
+    expect(res.status).toBe(200);
+    expect(res.body.escalated).toBe(false);
     expect(res.body.reason).toBe('llm_failure');
-    expect(res.body.answer).toBeNull();
+    expect(res.body.answer).toMatch(/trouble|menu|human/i);
+    expect(res.body.options?.length).toBeGreaterThan(0);
+    expect(res.body.detail).toMatch(/timeout/i);
 
     const conv = await Conversation.findById(res.body.conversationId);
-    expect(conv.status).toBe('needs_human');
+    expect(conv.status).toBe('ai_handling');
   });
 });
