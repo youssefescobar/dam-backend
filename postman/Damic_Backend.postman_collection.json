@@ -844,7 +844,7 @@
               "raw": "{\n  \"text\": \"How much is an airport transfer?\",\n  \"customerName\": \"Sam Rivera\",\n  \"customerContact\": \"sam@example.com\"\n}"
             },
             "url": "{{baseUrl}}/chat/message",
-            "description": "Customer chat message. Injects FAQ into LLM prompt.\n\nRequires KB content + LLM key (`GROQ_API_KEY` or `GEMINI_API_KEY`) for a real answer.\n\nSaves `conversationId` for follow-ups."
+            "description": "Customer chat message. Injects FAQ into LLM prompt.\n\nRequires KB content + `GEMINI_API_KEY` for a real free-text answer.\n\nSaves `conversationId` for follow-ups."
           },
           "response": [
             {
@@ -1127,7 +1127,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/health",
-            "description": "**Manual folder order:**\n\n1. Auth → Login\n2. Knowledge Base → Create KB entry (admin) — fares\n3. Knowledge Base → Create KB entry — hours example\n4. Chat → Ask question (FAQ prompt)\n5. Chat → Follow-up in same conversation\n6. Chat → Ask unrelated — expect escalation\n7. Chat → Request human agent\n\nNeeds `GROQ_API_KEY` or `GEMINI_API_KEY` in `.env` for real LLM answers."
+            "description": "**Manual folder order:**\n\n1. Auth → Login\n2. Knowledge Base → Create KB entry (admin) — fares\n3. Knowledge Base → Create KB entry — hours example\n4. Chat → Ask question (FAQ prompt)\n5. Chat → Follow-up in same conversation\n6. Chat → Ask unrelated — expect escalation\n7. Chat → Request human agent\n\nNeeds `GEMINI_API_KEY` in `.env` for real LLM answers."
           },
           "response": []
         }

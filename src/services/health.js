@@ -73,57 +73,41 @@ function checkSockets() {
 }
 
 async function checkLlm(deep) {
-  const groqConfigured = Boolean(process.env.GROQ_API_KEY);
   const geminiConfigured = Boolean(process.env.GEMINI_API_KEY);
+  const model = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 
   const providers = {
-    groq: {
-      configured: groqConfigured,
-      reachable: null,
-    },
     gemini: {
       configured: geminiConfigured,
+      model,
       reachable: null,
     },
   };
 
-  if (!groqConfigured && !geminiConfigured) {
+  if (!geminiConfigured) {
     return {
       status: 'degraded',
       providers,
-      detail: 'No GROQ_API_KEY or GEMINI_API_KEY configured',
+      detail: 'No GEMINI_API_KEY configured',
     };
   }
 
   if (deep) {
-    if (groqConfigured) {
-      providers.groq.reachable = await pingGroq();
-    }
-    if (geminiConfigured) {
-      providers.gemini.reachable = await pingGemini();
-    }
-
-    const anyUp =
-      providers.groq.reachable === true || providers.gemini.reachable === true;
-    const anyConfiguredDown =
-      (groqConfigured && providers.groq.reachable === false) ||
-      (geminiConfigured && providers.gemini.reachable === false);
+    providers.gemini.reachable = await pingGemini();
 
     return {
-      status: anyUp ? 'ok' : 'error',
+      status: providers.gemini.reachable ? 'ok' : 'error',
       providers,
-      detail: anyUp
-        ? 'At least one LLM provider reachable'
-        : anyConfiguredDown
-          ? 'Configured LLM provider(s) unreachable'
-          : 'LLM probe inconclusive',
+      detail: providers.gemini.reachable
+        ? 'Gemini reachable'
+        : 'Gemini unreachable',
     };
   }
 
   return {
     status: 'ok',
     providers,
-    detail: 'API key(s) present (use ?deep=1 to ping providers)',
+    detail: 'GEMINI_API_KEY present (use ?deep=1 to ping)',
   };
 }
 
@@ -141,18 +125,6 @@ function checkPush() {
     ...snap,
     detail: snap.ready ? 'Web Push ready' : 'VAPID set but push not initialized',
   };
-}
-
-async function pingGroq() {
-  try {
-    const res = await fetch('https://api.groq.com/openai/v1/models', {
-      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-      signal: AbortSignal.timeout(8000),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
 }
 
 async function pingGemini() {

@@ -7,13 +7,13 @@ export const SYSTEM_PROMPT =
   'Match the user\'s language (Arabic or English). ' +
   'If the FAQ does not contain enough information to answer, reply exactly with: I don\'t know';
 
-/** Prefer lite/current Flash IDs — older gemini-2.x IDs return 404. */
-const GEMINI_MODELS = [
-  process.env.GEMINI_MODEL,
-  'gemini-3.5-flash-lite',
-  'gemini-3.5-flash',
-  'gemini-3.8-flash',
-].filter(Boolean);
+/**
+ * Cheapest solid text model for FAQ Q&A (high-throughput Flash-Lite).
+ * Override with GEMINI_MODEL. Fallback keeps chat up if one id is overloaded.
+ */
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
+
+const GEMINI_FALLBACK_MODELS = ['gemini-3.5-flash-lite'];
 
 /** @type {((prompt: { question: string, context: string }) => Promise<string>) | null} */
 let llmOverride = null;
@@ -26,13 +26,18 @@ export function resetLlmOverride() {
   llmOverride = null;
 }
 
+function resolveGeminiModels() {
+  const primary = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  return [primary, ...GEMINI_FALLBACK_MODELS.filter((m) => m !== primary)];
+}
+
 /**
- * Call Gemini (primary when Groq is down) or Groq with the full FAQ injected.
+ * Call Gemini with the full FAQ injected.
  * @param {{
  *   question: string,
  *   faqEntries?: { title: string, content: string }[],
  * }} input
- * @returns {Promise<{ answer: string, provider: string }>}
+ * @returns {Promise<{ answer: string, provider: string, model: string }>}
  */
 export async function generateAnswer(input) {
   const context = Array.isArray(input.faqEntries)
@@ -41,67 +46,24 @@ export async function generateAnswer(input) {
 
   if (typeof llmOverride === 'function') {
     const answer = await llmOverride({ question: input.question, context });
-    return { answer, provider: 'override' };
+    return { answer, provider: 'override', model: 'override' };
   }
 
-  const errors = [];
-
-  // Prefer Gemini first: Groq free-tier keys often go stale; health ping can still
-  // look "ok" while chat completions fail with 401.
-  if (process.env.GEMINI_API_KEY) {
-    try {
-      const answer = await callGemini(input.question, context);
-      return { answer, provider: 'gemini' };
-    } catch (err) {
-      logger.warn({ err: err.message }, 'Gemini failed, trying Groq');
-      errors.push(err);
-    }
+  if (!process.env.GEMINI_API_KEY) {
+    const error = new Error('LLM unavailable: GEMINI_API_KEY not configured');
+    error.code = 'LLM_UNAVAILABLE';
+    throw error;
   }
 
-  if (process.env.GROQ_API_KEY) {
-    try {
-      const answer = await callGroq(input.question, context);
-      return { answer, provider: 'groq' };
-    } catch (err) {
-      logger.warn({ err: err.message }, 'Groq failed');
-      errors.push(err);
-    }
+  try {
+    const { answer, model } = await callGemini(input.question, context);
+    return { answer, provider: 'gemini', model };
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Gemini failed');
+    const error = new Error(`LLM unavailable: ${err.message}`);
+    error.code = 'LLM_UNAVAILABLE';
+    throw error;
   }
-
-  const detail = errors.map((e) => e.message).join('; ') || 'No LLM API keys configured';
-  const error = new Error(`LLM unavailable: ${detail}`);
-  error.code = 'LLM_UNAVAILABLE';
-  throw error;
-}
-
-async function callGroq(question, context) {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-      temperature: 0.2,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: `FAQ:\n${context}\n\nQuestion: ${question}`,
-        },
-      ],
-    }),
-    signal: AbortSignal.timeout(30000),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Groq HTTP ${res.status}: ${body.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || "I don't know";
 }
 
 async function callGemini(question, context) {
@@ -109,14 +71,13 @@ async function callGemini(question, context) {
   const prompt = `${SYSTEM_PROMPT}\n\nFAQ:\n${context}\n\nQuestion: ${question}`;
   const errors = [];
 
-  for (const model of GEMINI_MODELS) {
+  for (const model of resolveGeminiModels()) {
     try {
       const answer = await callGeminiModel(key, model, prompt);
-      return answer;
+      return { answer, model };
     } catch (err) {
       logger.warn({ model, err: err.message }, 'Gemini model failed');
       errors.push(err);
-      // Auth / quota: don't burn through the list
       if (/HTTP 401|HTTP 403|HTTP 429/.test(err.message)) break;
     }
   }

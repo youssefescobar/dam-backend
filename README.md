@@ -9,7 +9,7 @@ Transportation company API: FAQ-in-prompt Q&A, quote requests, Socket.io human e
 | Runtime | Node.js + Express (ESM) |
 | Database | MongoDB Atlas (M0) / `mongodb-memory-server` in tests |
 | Knowledge | Mongo FAQ rows (`title` / `content`) injected into the LLM prompt |
-| LLM | Groq (Llama 3.3 70B) → Gemini free-tier fallback |
+| LLM | Gemini (`gemini-3.1-flash-lite`, fallback `gemini-3.5-flash-lite`) |
 | Realtime | Socket.io |
 | Push | Web Push (VAPID) |
 | Auth | JWT + bcrypt |
@@ -18,7 +18,7 @@ Transportation company API: FAQ-in-prompt Q&A, quote requests, Socket.io human e
 
 ```bash
 cp .env.example .env
-# fill MONGO_URI, JWT_SECRET, optional GROQ_API_KEY / GEMINI_API_KEY / VAPID_*
+# fill MONGO_URI, JWT_SECRET, GEMINI_API_KEY, optional VAPID_*
 npm install
 npm run seed:admin   # creates admin@damic.local / changeme123 by default
 npm start
