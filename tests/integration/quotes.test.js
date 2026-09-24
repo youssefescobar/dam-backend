@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
 import { createApp } from '../../src/app.js';
@@ -6,13 +6,11 @@ import { startTestDb, stopTestDb, clearDb } from '../helpers/db.js';
 import { Admin } from '../../src/models/Admin.js';
 import { Quote } from '../../src/models/Quote.js';
 import { KnowledgeBaseEntry } from '../../src/models/KnowledgeBaseEntry.js';
-import { setEmbedKnowledgeEntry } from '../../src/services/embedding.js';
 
 describe('Quotes & Auth & KB (Phase 1)', () => {
   /** @type {import('express').Express} */
   let app;
   let adminToken;
-  let embedCalls = 0;
 
   beforeAll(async () => {
     process.env.JWT_SECRET = 'test-jwt-secret-for-jest';
@@ -26,11 +24,6 @@ describe('Quotes & Auth & KB (Phase 1)', () => {
 
   beforeEach(async () => {
     await clearDb();
-    embedCalls = 0;
-    setEmbedKnowledgeEntry(async (entry) => {
-      embedCalls += 1;
-      return [{ text: entry.content, embedding: [0.1, 0.2] }];
-    });
 
     const passwordHash = await bcrypt.hash('password123', 10);
     await Admin.create({
@@ -121,22 +114,23 @@ describe('Quotes & Auth & KB (Phase 1)', () => {
       expect(res.status).toBe(401);
     });
 
-    it('creates KB entry and triggers re-embedding hook', async () => {
+    it('creates and updates KB FAQ entries without embeddings', async () => {
       const res = await request(app)
         .post('/kb')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ title: 'Hours', content: 'We are open 9-5' });
 
       expect(res.status).toBe(201);
-      expect(embedCalls).toBe(1);
-      expect(res.body.entry.chunks.length).toBe(1);
+      expect(res.body.entry.title).toBe('Hours');
+      expect(res.body.entry.content).toBe('We are open 9-5');
+      expect(res.body.entry.chunks).toBeUndefined();
 
       const updated = await request(app)
         .put(`/kb/${res.body.entry._id}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ title: 'Hours', content: 'We are open 8-6' });
       expect(updated.status).toBe(200);
-      expect(embedCalls).toBe(2);
+      expect(updated.body.entry.content).toBe('We are open 8-6');
 
       const count = await KnowledgeBaseEntry.countDocuments();
       expect(count).toBe(1);

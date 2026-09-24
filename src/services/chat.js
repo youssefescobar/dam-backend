@@ -1,7 +1,7 @@
 import { Conversation } from '../models/Conversation.js';
 import { Message } from '../models/Message.js';
 import { Customer } from '../models/Customer.js';
-import { retrieveForQuestion } from './retrieve.js';
+import { loadFaqEntries } from './faqPrompt.js';
 import {
   generateAnswer,
   looksLikeDontKnow,
@@ -19,21 +19,16 @@ import {
 } from '../config/guidedChat.js';
 
 /**
- * Process a customer chat message: guided menu → RAG → LLM → escalate if needed.
+ * Process a customer chat message: guided menu → FAQ-in-prompt LLM → escalate if needed.
  * @param {{
  *   conversationId?: string,
  *   customerName?: string,
  *   customerContact?: string,
  *   text?: string,
  *   choiceId?: string,
- *   similarityThreshold?: number,
  * }} input
  */
 export async function handleChatMessage(input) {
-  const threshold =
-    input.similarityThreshold ??
-    (Number(process.env.RAG_SIMILARITY_THRESHOLD) || 0.45);
-
   const choiceId =
     input.choiceId || findChoiceIdByLabel(input.text) || null;
   const text =
@@ -95,27 +90,22 @@ export async function handleChatMessage(input) {
     });
   }
 
-  let retrieval;
+  let faqEntries;
   try {
-    retrieval = await retrieveForQuestion(text);
+    faqEntries = await loadFaqEntries();
   } catch (err) {
-    return escalate(conversation, 'retrieval_failed', err.message);
+    return escalate(conversation, 'faq_load_failed', err.message);
   }
 
-  if (retrieval.emptyKb) {
+  if (!faqEntries.length) {
     return escalate(conversation, 'empty_kb');
-  }
-
-  const topScore = retrieval.matches[0]?.score ?? 0;
-  if (topScore < threshold) {
-    return escalate(conversation, 'low_similarity', `topScore=${topScore.toFixed(3)}`);
   }
 
   let llmResult;
   try {
     llmResult = await generateAnswer({
       question: text,
-      contextChunks: retrieval.matches,
+      faqEntries,
     });
   } catch (err) {
     return escalate(conversation, 'llm_failure', err.message);
@@ -126,11 +116,10 @@ export async function handleChatMessage(input) {
   }
 
   return replyAi(conversation, llmResult.answer, {
-    reason: 'rag',
+    reason: 'faq',
     options: MAIN_MENU_OPTIONS,
     provider: llmResult.provider,
-    topScore,
-    matches: retrieval.matches,
+    faqCount: faqEntries.length,
   });
 }
 
@@ -153,8 +142,7 @@ async function replyAi(conversation, answer, extra = {}) {
     options: extra.options ?? MAIN_MENU_OPTIONS,
     reason: extra.reason || null,
     provider: extra.provider,
-    topScore: extra.topScore,
-    matches: extra.matches,
+    faqCount: extra.faqCount,
   };
 }
 

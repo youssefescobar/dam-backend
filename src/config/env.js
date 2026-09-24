@@ -33,7 +33,6 @@ export function loadEnv(source = process.env, options = {}) {
     vapidPublicKey: source.VAPID_PUBLIC_KEY || '',
     vapidPrivateKey: source.VAPID_PRIVATE_KEY || '',
     vapidSubject: source.VAPID_SUBJECT || 'mailto:admin@example.com',
-    ragSimilarityThreshold: Number(source.RAG_SIMILARITY_THRESHOLD) || 0.45,
   };
 }
 

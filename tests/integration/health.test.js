@@ -16,7 +16,7 @@ describe('GET /health', () => {
     await stopTestDb();
   });
 
-  it('returns 200 with checks for db, sockets, embeddings, llm, push', async () => {
+  it('returns 200 with checks for db, sockets, llm, push', async () => {
     const app = createApp();
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);
@@ -25,7 +25,7 @@ describe('GET /health', () => {
     expect(res.body.checks.database.status).toBe('ok');
     expect(res.body.checks.database.detail).toBe('connected');
     expect(res.body.checks.sockets).toBeDefined();
-    expect(res.body.checks.embeddings).toBeDefined();
+    expect(res.body.checks.embeddings).toBeUndefined();
     expect(res.body.checks.llm).toBeDefined();
     expect(res.body.checks.push).toBeDefined();
     expect(typeof res.body.uptimeSeconds).toBe('number');

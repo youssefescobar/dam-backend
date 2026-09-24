@@ -6,14 +6,38 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://127.0.0.1:3000" },
-    { "key": "token", "value": "" },
-    { "key": "adminEmail", "value": "admin@damic.local" },
-    { "key": "adminPassword", "value": "changeme123" },
-    { "key": "quoteId", "value": "" },
-    { "key": "conversationId", "value": "" },
-    { "key": "kbId", "value": "" },
-    { "key": "customerContact", "value": "jordan@example.com" }
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@damic.local"
+    },
+    {
+      "key": "adminPassword",
+      "value": "changeme123"
+    },
+    {
+      "key": "quoteId",
+      "value": ""
+    },
+    {
+      "key": "conversationId",
+      "value": ""
+    },
+    {
+      "key": "kbId",
+      "value": ""
+    },
+    {
+      "key": "customerContact",
+      "value": "jordan@example.com"
+    }
   ],
   "item": [
     {
@@ -25,7 +49,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/health",
-            "description": "Full system health: database, sockets, embeddings, LLM keys, Web Push.\n\nOverall `status`: `ok` | `degraded` | `error` (HTTP 503 if error)."
+            "description": "Full system health: database, sockets, LLM keys, Web Push.\n\nOverall `status`: `ok` | `degraded` | `error` (HTTP 503 if error)."
           },
           "response": [
             {
@@ -38,8 +62,13 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"status\": \"ok\",\n  \"uptimeSeconds\": 42,\n  \"timestamp\": \"2026-09-18T15:00:00.000Z\",\n  \"checks\": {\n    \"database\": { \"status\": \"ok\", \"readyState\": 1, \"detail\": \"connected\" },\n    \"sockets\": { \"status\": \"ok\", \"initialized\": true, \"connections\": 2, \"detail\": \"Socket.io ready\" },\n    \"embeddings\": { \"status\": \"idle\", \"model\": \"Xenova/all-MiniLM-L6-v2\", \"loaded\": false, \"detail\": \"Model not loaded yet\" },\n    \"llm\": { \"status\": \"ok\", \"providers\": { \"groq\": { \"configured\": true, \"reachable\": null }, \"gemini\": { \"configured\": false, \"reachable\": null } } },\n    \"push\": { \"status\": \"ok\", \"vapidConfigured\": true, \"ready\": true }\n  }\n}"
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": \"ok\",\n  \"uptimeSeconds\": 42,\n  \"timestamp\": \"2026-09-18T15:00:00.000Z\",\n  \"checks\": {\n    \"database\": {\n      \"status\": \"ok\",\n      \"readyState\": 1,\n      \"detail\": \"connected\"\n    },\n    \"sockets\": {\n      \"status\": \"ok\",\n      \"initialized\": true,\n      \"connections\": 2,\n      \"detail\": \"Socket.io ready\"\n    },\n    \"llm\": {\n      \"status\": \"ok\",\n      \"providers\": {\n        \"groq\": {\n          \"configured\": true,\n          \"reachable\": null\n        },\n        \"gemini\": {\n          \"configured\": false,\n          \"reachable\": null\n        }\n      }\n    },\n    \"push\": {\n      \"status\": \"ok\",\n      \"vapidConfigured\": true,\n      \"ready\": true\n    }\n  }\n}"
             }
           ]
         },
@@ -50,17 +79,21 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/health?deep=1",
-              "host": ["{{baseUrl}}"],
-              "path": ["health"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ],
               "query": [
                 {
                   "key": "deep",
                   "value": "1",
-                  "description": "Warm embeddings + ping Groq/Gemini APIs"
+                  "description": "Ping Groq/Gemini APIs"
                 }
               ]
             },
-            "description": "Deep health: runs a tiny embedding and pings configured LLM providers. Slower; may load the MiniLM model on first call."
+            "description": "Deep health: pings configured LLM providers. Slightly slower."
           },
           "response": [
             {
@@ -68,8 +101,13 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"status\": \"ok\",\n  \"checks\": {\n    \"embeddings\": { \"status\": \"ok\", \"loaded\": true, \"dimensions\": 384 },\n    \"llm\": { \"status\": \"ok\", \"providers\": { \"groq\": { \"configured\": true, \"reachable\": true } } }\n  }\n}"
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": \"ok\",\n  \"checks\": {\n    \"llm\": {\n      \"status\": \"ok\",\n      \"providers\": {\n        \"groq\": {\n          \"configured\": true,\n          \"reachable\": true\n        }\n      }\n    }\n  }\n}"
             }
           ]
         }
@@ -98,7 +136,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
@@ -111,7 +154,12 @@
               "name": "Success",
               "originalRequest": {
                 "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"email\": \"admin@damic.local\",\n  \"password\": \"changeme123\"\n}"
@@ -121,14 +169,24 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"admin\": {\n    \"id\": \"66f000000000000000000001\",\n    \"name\": \"Admin\",\n    \"email\": \"admin@damic.local\",\n    \"role\": \"admin\"\n  }\n}"
             },
             {
               "name": "Invalid credentials",
               "originalRequest": {
                 "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"email\": \"admin@damic.local\",\n  \"password\": \"wrong\"\n}"
@@ -138,14 +196,24 @@
               "status": "Unauthorized",
               "code": 401,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"error\": \"Invalid email or password\"\n}"
             },
             {
               "name": "Validation error",
               "originalRequest": {
                 "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"email\": \"not-an-email\",\n  \"password\": \"\"\n}"
@@ -155,7 +223,12 @@
               "status": "Bad Request",
               "code": 400,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"error\": \"Validation failed\",\n  \"fields\": {\n    \"email\": \"Invalid email\",\n    \"password\": \"Too small: expected string to have >=1 characters\"\n  }\n}"
             }
           ]
@@ -185,7 +258,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"customerName\": \"Jordan Lee\",\n  \"customerContact\": \"jordan@example.com\",\n  \"pickup\": \"JFK Airport\",\n  \"dropoff\": \"Manhattan Hotel\",\n  \"date\": \"2026-12-15T14:00:00.000Z\",\n  \"vehicleType\": \"sprinter\",\n  \"passengers\": 8,\n  \"notes\": \"Flight AA100\",\n  \"channel\": \"web\"\n}"
@@ -198,7 +276,12 @@
               "name": "Created",
               "originalRequest": {
                 "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"customerName\": \"Jordan Lee\",\n  \"customerContact\": \"jordan@example.com\",\n  \"pickup\": \"JFK Airport\",\n  \"dropoff\": \"Manhattan Hotel\",\n  \"date\": \"2026-12-15T14:00:00.000Z\",\n  \"vehicleType\": \"sprinter\",\n  \"passengers\": 8,\n  \"notes\": \"Flight AA100\",\n  \"channel\": \"web\"\n}"
@@ -208,14 +291,24 @@
               "status": "Created",
               "code": 201,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"quote\": {\n    \"_id\": \"66f000000000000000000010\",\n    \"customerId\": \"66f000000000000000000011\",\n    \"conversationId\": \"66f000000000000000000012\",\n    \"pickup\": \"JFK Airport\",\n    \"dropoff\": \"Manhattan Hotel\",\n    \"date\": \"2026-12-15T14:00:00.000Z\",\n    \"vehicleType\": \"sprinter\",\n    \"passengers\": 8,\n    \"notes\": \"Flight AA100\",\n    \"status\": \"new\",\n    \"quotedPrice\": null,\n    \"customerName\": \"Jordan Lee\",\n    \"customerContact\": \"jordan@example.com\"\n  },\n  \"conversationId\": \"66f000000000000000000012\"\n}"
             },
             {
               "name": "Missing fields",
               "originalRequest": {
                 "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"customerName\": \"Jordan Lee\"\n}"
@@ -225,7 +318,12 @@
               "status": "Bad Request",
               "code": 400,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"error\": \"Validation failed\",\n  \"fields\": {\n    \"customerContact\": \"customerContact is required\",\n    \"pickup\": \"pickup is required\",\n    \"dropoff\": \"dropoff is required\",\n    \"date\": \"Invalid input\",\n    \"vehicleType\": \"vehicleType is required\",\n    \"passengers\": \"Invalid input\"\n  }\n}"
             }
           ]
@@ -235,14 +333,24 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/quotes",
-              "host": ["{{baseUrl}}"],
-              "path": ["quotes"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "quotes"
+              ]
             },
             "description": "List all quotes (newest first). Requires admin JWT."
           },
@@ -252,7 +360,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"quotes\": [\n    {\n      \"_id\": \"66f000000000000000000010\",\n      \"pickup\": \"JFK Airport\",\n      \"dropoff\": \"Manhattan Hotel\",\n      \"status\": \"new\",\n      \"quotedPrice\": null,\n      \"customerName\": \"Jordan Lee\"\n    }\n  ]\n}"
             },
             {
@@ -260,7 +373,12 @@
               "status": "Unauthorized",
               "code": 401,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"error\": \"Authentication required\"\n}"
             }
           ]
@@ -270,14 +388,24 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/quotes?status=new",
-              "host": ["{{baseUrl}}"],
-              "path": ["quotes"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "quotes"
+              ],
               "query": [
                 {
                   "key": "status",
@@ -294,7 +422,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"quotes\": [\n    {\n      \"_id\": \"66f000000000000000000010\",\n      \"status\": \"new\",\n      \"customerName\": \"Jordan Lee\"\n    }\n  ]\n}"
             }
           ]
@@ -304,10 +437,21 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"status\": \"quoted\",\n  \"quotedPrice\": 275\n}"
@@ -321,7 +465,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"quote\": {\n    \"_id\": \"66f000000000000000000010\",\n    \"status\": \"quoted\",\n    \"quotedPrice\": 275,\n    \"conversationId\": \"66f000000000000000000012\"\n  }\n}"
             },
             {
@@ -329,7 +478,12 @@
               "status": "Not Found",
               "code": 404,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"error\": \"Quote not found\"\n}"
             }
           ]
@@ -339,10 +493,21 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"status\": \"won\",\n  \"notes\": \"Customer accepted via phone\"\n}"
@@ -356,7 +521,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"quote\": {\n    \"_id\": \"66f000000000000000000010\",\n    \"status\": \"won\",\n    \"quotedPrice\": 275,\n    \"notes\": \"Customer accepted via phone\"\n  }\n}"
             }
           ]
@@ -366,10 +536,21 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"status\": \"lost\",\n  \"notes\": \"Chose another provider\"\n}"
@@ -382,7 +563,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"quote\": {\n    \"_id\": \"66f000000000000000000010\",\n    \"status\": \"lost\",\n    \"notes\": \"Chose another provider\"\n  }\n}"
             }
           ]
@@ -411,16 +597,27 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"title\": \"Airport transfer fares\",\n  \"content\": \"Airport transfers start at $50 for a sedan. Sprinter vans start at $120. Night surcharge of 20% applies between 11pm and 5am. We serve JFK, LGA, and EWR.\"\n}"
             },
             "url": "{{baseUrl}}/kb",
-            "description": "Create a knowledge base entry. Content is chunked and embedded automatically (may take a few seconds on first model load)."
+            "description": "Create a FAQ knowledge base entry (title = question, content = answer)."
           },
           "response": [
             {
@@ -428,8 +625,13 @@
               "status": "Created",
               "code": 201,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"entry\": {\n    \"_id\": \"66f000000000000000000020\",\n    \"title\": \"Airport transfer fares\",\n    \"content\": \"Airport transfers start at $50...\",\n    \"chunks\": [\n      {\n        \"text\": \"Airport transfer fares\\n\\nAirport transfers start at $50...\",\n        \"embedding\": [0.01, -0.02]\n      }\n    ]\n  }\n}"
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"entry\": {\n    \"_id\": \"66f000000000000000000020\",\n    \"title\": \"Airport transfer fares\",\n    \"content\": \"Airport transfers start at $50...\"\n  }\n}"
             }
           ]
         },
@@ -452,10 +654,21 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"title\": \"Business hours\",\n  \"content\": \"We are open Monday through Friday, 8am to 8pm Eastern Time. Weekend dispatch is available for booked transfers only. For emergencies call our 24/7 hotline.\"\n}"
@@ -468,7 +681,12 @@
               "status": "Created",
               "code": 201,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"entry\": {\n    \"_id\": \"66f000000000000000000021\",\n    \"title\": \"Business hours\",\n    \"content\": \"We are open Monday through Friday...\"\n  }\n}"
             }
           ]
@@ -478,12 +696,18 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/kb",
-            "description": "List KB entries (embeddings omitted from chunk payloads for readability)."
+            "description": "List FAQ knowledge base entries."
           },
           "response": [
             {
@@ -491,7 +715,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"entries\": [\n    {\n      \"_id\": \"66f000000000000000000020\",\n      \"title\": \"Airport transfer fares\",\n      \"content\": \"Airport transfers start at $50...\",\n      \"chunks\": [{ \"text\": \"...\" }]\n    }\n  ]\n}"
             }
           ]
@@ -501,16 +730,27 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"title\": \"Airport transfer fares\",\n  \"content\": \"Airport transfers start at $55 for a sedan (updated). Sprinter vans start at $130. Night surcharge of 20% applies between 11pm and 5am.\"\n}"
             },
             "url": "{{baseUrl}}/kb/{{kbId}}",
-            "description": "Replace title/content and re-embed all chunks."
+            "description": "Replace FAQ title/content."
           },
           "response": [
             {
@@ -518,7 +758,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"entry\": {\n    \"_id\": \"66f000000000000000000020\",\n    \"title\": \"Airport transfer fares\",\n    \"content\": \"Airport transfers start at $55...\"\n  }\n}"
             },
             {
@@ -526,7 +771,12 @@
               "status": "Not Found",
               "code": 404,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"error\": \"Knowledge base entry not found\"\n}"
             }
           ]
@@ -536,12 +786,18 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "DELETE",
             "header": [],
             "url": "{{baseUrl}}/kb/{{kbId}}",
-            "description": "Delete KB entry and its chunk embeddings. Returns 204 No Content."
+            "description": "Delete FAQ KB entry. Returns 204 No Content."
           },
           "response": [
             {
@@ -560,7 +816,7 @@
       "name": "Chat",
       "item": [
         {
-          "name": "Ask question (RAG answer)",
+          "name": "Ask question (FAQ prompt)",
           "event": [
             {
               "listen": "test",
@@ -577,13 +833,18 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"text\": \"How much is an airport transfer?\",\n  \"customerName\": \"Sam Rivera\",\n  \"customerContact\": \"sam@example.com\"\n}"
             },
             "url": "{{baseUrl}}/chat/message",
-            "description": "Customer chat message. Runs RAG + LLM.\n\nRequires KB content + LLM key (`GROQ_API_KEY` or `GEMINI_API_KEY`) for a real answer.\n\nSaves `conversationId` for follow-ups."
+            "description": "Customer chat message. Injects FAQ into LLM prompt.\n\nRequires KB content + LLM key (`GROQ_API_KEY` or `GEMINI_API_KEY`) for a real answer.\n\nSaves `conversationId` for follow-ups."
           },
           "response": [
             {
@@ -591,7 +852,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"conversationId\": \"66f000000000000000000030\",\n  \"status\": \"ai_handling\",\n  \"escalated\": false,\n  \"answer\": \"Airport transfers start at $50 for a sedan.\",\n  \"reason\": null,\n  \"systemMessage\": null\n}"
             }
           ]
@@ -600,7 +866,12 @@
           "name": "Follow-up in same conversation",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"text\": \"Do you serve EWR as well?\",\n  \"conversationId\": \"{{conversationId}}\",\n  \"customerContact\": \"sam@example.com\"\n}"
@@ -614,7 +885,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"conversationId\": \"66f000000000000000000030\",\n  \"status\": \"ai_handling\",\n  \"escalated\": false,\n  \"answer\": \"Yes, we serve JFK, LGA, and EWR.\",\n  \"reason\": null,\n  \"systemMessage\": null\n}"
             }
           ]
@@ -637,7 +913,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"text\": \"What is the capital of Mars and who invented pizza?\",\n  \"customerName\": \"Alex\",\n  \"customerContact\": \"alex-unrelated@example.com\"\n}"
@@ -651,7 +932,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"conversationId\": \"66f000000000000000000031\",\n  \"status\": \"needs_human\",\n  \"escalated\": true,\n  \"answer\": null,\n  \"reason\": \"low_similarity\",\n  \"systemMessage\": \"I'm connecting you with a team member who can help. Someone will be with you shortly.\"\n}"
             }
           ]
@@ -674,7 +960,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"text\": \"I want to talk to a human please\",\n  \"customerName\": \"Casey\",\n  \"customerContact\": \"casey@example.com\"\n}"
@@ -688,7 +979,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"conversationId\": \"66f000000000000000000032\",\n  \"status\": \"needs_human\",\n  \"escalated\": true,\n  \"answer\": null,\n  \"reason\": \"explicit_human_request\",\n  \"systemMessage\": \"I'm connecting you with a team member who can help. Someone will be with you shortly.\"\n}"
             }
           ]
@@ -697,7 +993,12 @@
           "name": "Empty body — validation error",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"text\": \"\"\n}"
@@ -710,7 +1011,12 @@
               "status": "Bad Request",
               "code": 400,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"error\": \"Validation failed\",\n  \"fields\": {\n    \"text\": \"text is required\"\n  }\n}"
             }
           ]
@@ -734,7 +1040,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"publicKey\": \"BEl62iUYgUivxIkv69yViEuiBIa...\"\n}"
             }
           ]
@@ -744,10 +1055,21 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/example-subscription-id\",\n  \"keys\": {\n    \"p256dh\": \"BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTsFwQIHxrCBWPJDFNQ\",\n    \"auth\": \"tBHItJI5svbpez7KI4CCXg\"\n  }\n}"
@@ -761,7 +1083,12 @@
               "status": "Created",
               "code": 201,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"ok\": true,\n  \"subscriptionCount\": 1\n}"
             },
             {
@@ -769,7 +1096,12 @@
               "status": "Unauthorized",
               "code": 401,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"error\": \"Authentication required\"\n}"
             }
           ]
@@ -795,7 +1127,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/health",
-            "description": "**Manual folder order:**\n\n1. Auth → Login\n2. Knowledge Base → Create KB entry (admin) — fares\n3. Knowledge Base → Create KB entry — hours example\n4. Chat → Ask question (RAG answer)\n5. Chat → Follow-up in same conversation\n6. Chat → Ask unrelated — expect escalation\n7. Chat → Request human agent\n\nNeeds `GROQ_API_KEY` or `GEMINI_API_KEY` in `.env` for real LLM answers."
+            "description": "**Manual folder order:**\n\n1. Auth → Login\n2. Knowledge Base → Create KB entry (admin) — fares\n3. Knowledge Base → Create KB entry — hours example\n4. Chat → Ask question (FAQ prompt)\n5. Chat → Follow-up in same conversation\n6. Chat → Ask unrelated — expect escalation\n7. Chat → Request human agent\n\nNeeds `GROQ_API_KEY` or `GEMINI_API_KEY` in `.env` for real LLM answers."
           },
           "response": []
         }

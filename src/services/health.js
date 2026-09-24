@@ -1,20 +1,18 @@
 import mongoose from 'mongoose';
 import { getIo } from '../sockets/chat.js';
-import { getEmbeddingStatus, embed } from './embedding.js';
 import { getPushStatus } from './push.js';
 
 const startedAt = Date.now();
 
 /**
  * Build a full system health report.
- * @param {{ deep?: boolean }} [options] deep=true probes LLM APIs and runs a tiny embed
+ * @param {{ deep?: boolean }} [options] deep=true probes LLM APIs
  */
 export async function getHealthReport(options = {}) {
   const deep = Boolean(options.deep);
   const checks = {
     database: checkDatabase(),
     sockets: checkSockets(),
-    embeddings: await checkEmbeddings(deep),
     llm: await checkLlm(deep),
     push: checkPush(),
   };
@@ -22,18 +20,7 @@ export async function getHealthReport(options = {}) {
   const statuses = Object.values(checks).map((c) => c.status);
   let status = 'ok';
   if (statuses.includes('error')) status = 'error';
-  else if (statuses.includes('degraded') || statuses.includes('idle')) status = 'degraded';
-
-  // idle embeddings alone shouldn't force degraded if LLM is ready —
-  // embeddings load lazily; treat idle as ok for overall unless deep failed
-  if (status === 'degraded' && checks.embeddings.status === 'idle') {
-    const others = Object.entries(checks)
-      .filter(([k]) => k !== 'embeddings')
-      .map(([, c]) => c.status);
-    if (!others.includes('error') && !others.includes('degraded')) {
-      status = 'ok';
-    }
-  }
+  else if (statuses.includes('degraded')) status = 'degraded';
 
   return {
     status,
@@ -45,7 +32,6 @@ export async function getHealthReport(options = {}) {
 
 function checkDatabase() {
   const readyState = mongoose.connection.readyState;
-  // 0=disconnected 1=connected 2=connecting 3=disconnecting
   const labels = {
     0: 'disconnected',
     1: 'connected',
@@ -84,48 +70,6 @@ function checkSockets() {
     connections,
     detail: 'Socket.io ready',
   };
-}
-
-async function checkEmbeddings(deep) {
-  const snap = getEmbeddingStatus();
-  if (snap.override) {
-    return {
-      status: 'ok',
-      ...snap,
-      detail: 'Embed override active (tests)',
-    };
-  }
-
-  if (!deep) {
-    return {
-      status: snap.loaded ? 'ok' : 'idle',
-      ...snap,
-      detail: snap.loaded
-        ? 'Model loaded'
-        : snap.loading
-          ? 'Model loading'
-          : 'Model not loaded yet (lazy — use ?deep=1 to warm)',
-    };
-  }
-
-  try {
-    const vec = await embed('health-check');
-    return {
-      status: 'ok',
-      model: snap.model,
-      loaded: true,
-      loading: false,
-      override: false,
-      dimensions: vec.length,
-      detail: 'Embed probe succeeded',
-    };
-  } catch (err) {
-    return {
-      status: 'error',
-      ...getEmbeddingStatus(),
-      detail: err.message || 'Embed probe failed',
-    };
-  }
 }
 
 async function checkLlm(deep) {

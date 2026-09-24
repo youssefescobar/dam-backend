@@ -4,7 +4,6 @@ import { KnowledgeBaseEntry } from '../models/KnowledgeBaseEntry.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errorHandler.js';
-import { embedKnowledgeEntry } from '../services/embedding.js';
 import { parseKbCsv } from '../utils/csv.js';
 import { importKnowledgeEntries } from '../services/kbImport.js';
 
@@ -37,11 +36,9 @@ router.use(requireAuth);
 
 router.post('/', validateBody(kbSchema), async (req, res, next) => {
   try {
-    const chunks = await embedKnowledgeEntry(req.body);
     const entry = await KnowledgeBaseEntry.create({
       title: req.body.title,
       content: req.body.content,
-      chunks,
     });
     res.status(201).json({ entry });
   } catch (err) {
@@ -82,7 +79,6 @@ router.put('/:id', validateBody(kbSchema), async (req, res, next) => {
     }
     entry.title = req.body.title;
     entry.content = req.body.content;
-    entry.chunks = await embedKnowledgeEntry(req.body);
     await entry.save();
     res.json({ entry });
   } catch (err) {
@@ -104,9 +100,7 @@ router.delete('/:id', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const entry = await KnowledgeBaseEntry.findById(req.params.id)
-      .select('-chunks.embedding')
-      .lean();
+    const entry = await KnowledgeBaseEntry.findById(req.params.id).lean();
     if (!entry) {
       throw new HttpError(404, 'Knowledge base entry not found');
     }
@@ -118,10 +112,7 @@ router.get('/:id', async (req, res, next) => {
 
 router.get('/', async (_req, res, next) => {
   try {
-    const entries = await KnowledgeBaseEntry.find()
-      .select('-chunks.embedding')
-      .sort({ updatedAt: -1 })
-      .lean();
+    const entries = await KnowledgeBaseEntry.find().sort({ updatedAt: -1 }).lean();
     res.json({ entries });
   } catch (err) {
     next(err);

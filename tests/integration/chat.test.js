@@ -4,47 +4,37 @@ import { createApp } from '../../src/app.js';
 import { startTestDb, stopTestDb, clearDb } from '../helpers/db.js';
 import { KnowledgeBaseEntry } from '../../src/models/KnowledgeBaseEntry.js';
 import { Conversation } from '../../src/models/Conversation.js';
-import { setEmbedOverride, resetEmbedOverride } from '../../src/services/embedding.js';
 import { setLlmOverride, resetLlmOverride } from '../../src/services/llm.js';
 
-function unit(i) {
-  const v = Array(384).fill(0);
-  v[i % 384] = 1;
-  return v;
-}
-
-describe('POST /chat/message (Phase 3)', () => {
+describe('POST /chat/message (FAQ prompt)', () => {
   let app;
 
   beforeAll(async () => {
     process.env.JWT_SECRET = 'test-jwt-secret-for-jest';
-    process.env.RAG_SIMILARITY_THRESHOLD = '0.5';
     await startTestDb();
     app = createApp();
   });
 
   afterAll(async () => {
-    resetEmbedOverride();
     resetLlmOverride();
     await stopTestDb();
   });
 
   beforeEach(async () => {
     await clearDb();
-    resetEmbedOverride();
     resetLlmOverride();
   });
 
-  it('returns a relevant answer and stays ai_handling when KB matches', async () => {
-    const kbVec = unit(0);
+  it('returns a relevant answer and stays ai_handling when FAQ is present', async () => {
     await KnowledgeBaseEntry.create({
-      title: 'Airport fares',
+      title: 'How much is an airport transfer?',
       content: 'Airport transfers start at $50.',
-      chunks: [{ text: 'Airport transfers start at $50.', embedding: kbVec }],
     });
 
-    setEmbedOverride(async () => kbVec);
-    setLlmOverride(async () => 'Airport transfers start at $50.');
+    setLlmOverride(async ({ context }) => {
+      expect(context).toMatch(/Airport transfers start at \$50/);
+      return 'Airport transfers start at $50.';
+    });
 
     const res = await request(app).post('/chat/message').send({
       text: 'How much is an airport transfer?',
@@ -56,17 +46,16 @@ describe('POST /chat/message (Phase 3)', () => {
     expect(res.body.escalated).toBe(false);
     expect(res.body.answer).toMatch(/\$50/);
     expect(res.body.status).toBe('ai_handling');
+    expect(res.body.reason).toBe('faq');
   });
 
-  it('escalates when question is unrelated (low similarity)', async () => {
+  it('escalates when the model cannot answer from the FAQ', async () => {
     await KnowledgeBaseEntry.create({
       title: 'Airport fares',
       content: 'Airport transfers start at $50.',
-      chunks: [{ text: 'Airport transfers start at $50.', embedding: unit(0) }],
     });
 
-    setEmbedOverride(async () => unit(100)); // nearly orthogonal
-    setLlmOverride(async () => 'should not be called');
+    setLlmOverride(async () => "I don't know");
 
     const res = await request(app).post('/chat/message').send({
       text: 'What is the capital of Mars?',
@@ -77,11 +66,10 @@ describe('POST /chat/message (Phase 3)', () => {
     expect(res.body.escalated).toBe(true);
     expect(res.body.answer).toBeNull();
     expect(res.body.status).toBe('needs_human');
-    expect(res.body.reason).toBe('low_similarity');
+    expect(res.body.reason).toBe('model_uncertain');
   });
 
   it('escalates immediately when knowledge base is empty', async () => {
-    setEmbedOverride(async () => unit(0));
     setLlmOverride(async () => 'nope');
 
     const res = await request(app).post('/chat/message').send({
@@ -98,9 +86,7 @@ describe('POST /chat/message (Phase 3)', () => {
     await KnowledgeBaseEntry.create({
       title: 'Hours',
       content: 'Open 9-5',
-      chunks: [{ text: 'Open 9-5', embedding: unit(0) }],
     });
-    setEmbedOverride(async () => unit(0));
     setLlmOverride(async () => 'Open 9-5');
 
     const res = await request(app).post('/chat/message').send({
@@ -116,9 +102,7 @@ describe('POST /chat/message (Phase 3)', () => {
     await KnowledgeBaseEntry.create({
       title: 'Hours',
       content: 'Open 9-5',
-      chunks: [{ text: 'Open 9-5', embedding: unit(0) }],
     });
-    setEmbedOverride(async () => unit(100));
     setLlmOverride(async () => 'should not be called');
 
     const res = await request(app).post('/chat/message').send({
@@ -134,7 +118,6 @@ describe('POST /chat/message (Phase 3)', () => {
   });
 
   it('guided choice returns canned answer without LLM', async () => {
-    setEmbedOverride(async () => unit(0));
     setLlmOverride(async () => 'should not be called');
 
     const res = await request(app).post('/chat/message').send({
@@ -153,9 +136,7 @@ describe('POST /chat/message (Phase 3)', () => {
     await KnowledgeBaseEntry.create({
       title: 'Hours',
       content: 'Open 9-5',
-      chunks: [{ text: 'Open 9-5', embedding: unit(0) }],
     });
-    setEmbedOverride(async () => unit(0));
     setLlmOverride(async () => {
       throw new Error('timeout');
     });

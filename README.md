@@ -1,6 +1,6 @@
 # Damic Backend
 
-Transportation company API: RAG Q&A, quote requests, Socket.io human escalation, and Web Push. Free-tier stack only.
+Transportation company API: FAQ-in-prompt Q&A, quote requests, Socket.io human escalation, and Web Push. Free-tier stack only.
 
 ## Stack
 
@@ -8,8 +8,7 @@ Transportation company API: RAG Q&A, quote requests, Socket.io human escalation,
 |-------|--------|
 | Runtime | Node.js + Express (ESM) |
 | Database | MongoDB Atlas (M0) / `mongodb-memory-server` in tests |
-| Embeddings | `@huggingface/transformers` (`Xenova/all-MiniLM-L6-v2`) |
-| Vector search | Cosine similarity in Node |
+| Knowledge | Mongo FAQ rows (`title` / `content`) injected into the LLM prompt |
 | LLM | Groq (Llama 3.3 70B) → Gemini free-tier fallback |
 | Realtime | Socket.io |
 | Push | Web Push (VAPID) |
@@ -36,20 +35,18 @@ npx web-push generate-vapid-keys
 | Command | Purpose |
 |---------|---------|
 | `npm start` | Boot API + Socket.io |
-| `npm test` | Jest suites + live embedding tests |
-| `npm run test:jest` | Jest only |
-| `npm run test:embeddings` | Real MiniLM embeddings (outside Jest) |
+| `npm test` / `npm run test:jest` | Jest suites |
 | `npm run seed:admin` | Create first admin |
 | `npm run seed:kb` | Import `data/kb-questions.csv` (upsert by title; set `KB_REPLACE_ALL=1` to wipe first) |
 | `npm run smoke` | Smoke-test a running server (`BASE_URL`) |
 
 ## API overview
 
-- `GET /health` — database, sockets, embeddings, LLM keys, push (`?deep=1` probes embed + LLM APIs)
+- `GET /health` — database, sockets, LLM keys, push (`?deep=1` pings LLM APIs)
 - `POST /auth/login`
 - `POST /quotes` (public) · `GET/PATCH /quotes` (admin JWT)
 - `GET/PATCH /conversations` · `GET /conversations/:id/messages` (admin JWT)
-- `POST/PUT/DELETE /kb` · `POST /kb/import` (admin JWT — CSV or JSON entries)
+- `POST/PUT/DELETE /kb` · `POST /kb/import` (admin JWT — CSV or JSON FAQ entries)
 - `POST /chat/message`
 - `POST /push/subscribe` · `POST /push/unsubscribe` · `GET /push/vapid-public-key`
 
@@ -81,7 +78,6 @@ cd ../dam-admin && npm install && npm run dev
 ## Testing notes
 
 - Automated tests use **`mongodb-memory-server`** (no Atlas required for CI).
-- Embedding model tests run in a **plain Node script** because Jest’s experimental VM modules break ONNX `Float32Array` realm checks.
 - LLM calls are mocked in unit/integration tests.
 
 ## Secrets

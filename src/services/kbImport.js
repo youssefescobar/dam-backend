@@ -1,8 +1,7 @@
 import { KnowledgeBaseEntry } from '../models/KnowledgeBaseEntry.js';
-import { embedKnowledgeEntry } from './embedding.js';
 
 /**
- * Import KB entries with embeddings.
+ * Import KB FAQ entries (title = question, content = answer).
  * @param {{ title: string, content: string }[]} entries
  * @param {{ mode?: 'append' | 'upsert', replaceAll?: boolean }} [options]
  */
@@ -25,20 +24,17 @@ export async function importKnowledgeEntries(entries, options = {}) {
     }
 
     try {
-      const chunks = await embedKnowledgeEntry({ title, content });
-
       if (mode === 'upsert' && !replaceAll) {
         const existing = await KnowledgeBaseEntry.findOne({ title });
         if (existing) {
           existing.content = content;
-          existing.chunks = chunks;
           await existing.save();
           summary.updated += 1;
           continue;
         }
       }
 
-      await KnowledgeBaseEntry.create({ title, content, chunks });
+      await KnowledgeBaseEntry.create({ title, content });
       summary.created += 1;
     } catch (err) {
       summary.errors.push({ title, error: err.message || String(err) });

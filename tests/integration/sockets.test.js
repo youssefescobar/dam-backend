@@ -12,14 +12,7 @@ import { KnowledgeBaseEntry } from '../../src/models/KnowledgeBaseEntry.js';
 import { Conversation } from '../../src/models/Conversation.js';
 import { Customer } from '../../src/models/Customer.js';
 import { Admin } from '../../src/models/Admin.js';
-import { setEmbedOverride, resetEmbedOverride } from '../../src/services/embedding.js';
 import { setLlmOverride, resetLlmOverride } from '../../src/services/llm.js';
-
-function unit(i) {
-  const v = Array(384).fill(0);
-  v[i % 384] = 1;
-  return v;
-}
 
 function waitFor(socket, event, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
@@ -46,7 +39,6 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
 
   beforeAll(async () => {
     process.env.JWT_SECRET = 'test-jwt-secret';
-    process.env.RAG_SIMILARITY_THRESHOLD = '0.5';
     mem = await MongoMemoryServer.create();
     await connectDb(mem.getUri());
 
@@ -62,7 +54,6 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
   });
 
   afterAll(async () => {
-    resetEmbedOverride();
     resetLlmOverride();
     ioServer.close();
     httpServer.close();
@@ -75,7 +66,6 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     for (const key of Object.keys(collections)) {
       await collections[key].deleteMany({});
     }
-    resetEmbedOverride();
     resetLlmOverride();
   });
 
@@ -83,9 +73,7 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     await KnowledgeBaseEntry.create({
       title: 'Hours',
       content: 'Open 9-5',
-      chunks: [{ text: 'We are open 9-5.', embedding: unit(0) }],
     });
-    setEmbedOverride(async () => unit(0));
     setLlmOverride(async () => 'We are open 9-5.');
 
     const client = ioc(baseUrl, { transports: ['websocket'], forceNew: true });
@@ -220,9 +208,7 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     await KnowledgeBaseEntry.create({
       title: 'Hours',
       content: 'Open 9-5',
-      chunks: [{ text: 'Open 9-5', embedding: unit(0) }],
     });
-    setEmbedOverride(async () => unit(0));
     setLlmOverride(async () => 'Open 9-5');
 
     const client = ioc(baseUrl, { transports: ['websocket'], forceNew: true });

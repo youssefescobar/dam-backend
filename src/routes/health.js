@@ -5,7 +5,7 @@ const router = Router();
 
 /**
  * GET /health
- * GET /health?deep=1  — also probes embeddings + LLM provider APIs (slower)
+ * GET /health?deep=1  — also pings configured LLM provider APIs (slower)
  */
 router.get('/', async (req, res, next) => {
   try {

@@ -1,9 +1,11 @@
 import { logger } from '../utils/logger.js';
+import { formatFaqBlock } from './faqPrompt.js';
 
-const SYSTEM_PROMPT =
-  'You are a helpful assistant for a transportation company. ' +
-  'Answer ONLY using the provided context. ' +
-  'If the context does not contain enough information to answer, reply exactly with: I don\'t know';
+export const SYSTEM_PROMPT =
+  'You are a helpful assistant for Durrah Al Munawwara Transport (Damic). ' +
+  'Answer ONLY using the FAQ provided below. ' +
+  'Match the user\'s language (Arabic or English). ' +
+  'If the FAQ does not contain enough information to answer, reply exactly with: I don\'t know';
 
 /** @type {((prompt: { question: string, context: string }) => Promise<string>) | null} */
 let llmOverride = null;
@@ -17,12 +19,17 @@ export function resetLlmOverride() {
 }
 
 /**
- * Call Groq (primary) or Gemini (fallback).
- * @param {{ question: string, contextChunks: { text: string, score?: number }[] }} input
+ * Call Groq (primary) or Gemini (fallback) with the full FAQ injected.
+ * @param {{
+ *   question: string,
+ *   faqEntries?: { title: string, content: string }[],
+ * }} input
  * @returns {Promise<{ answer: string, provider: string }>}
  */
 export async function generateAnswer(input) {
-  const context = input.contextChunks.map((c, i) => `[${i + 1}] ${c.text}`).join('\n\n');
+  const context = Array.isArray(input.faqEntries)
+    ? formatFaqBlock(input.faqEntries)
+    : '(no FAQ entries)';
 
   if (typeof llmOverride === 'function') {
     const answer = await llmOverride({ question: input.question, context });
@@ -71,7 +78,7 @@ async function callGroq(question, context) {
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
-          content: `Context:\n${context || '(no context)'}\n\nQuestion: ${question}`,
+          content: `FAQ:\n${context}\n\nQuestion: ${question}`,
         },
       ],
     }),
@@ -98,8 +105,7 @@ async function callGemini(question, context) {
         {
           parts: [
             {
-              text:
-                `${SYSTEM_PROMPT}\n\nContext:\n${context || '(no context)'}\n\nQuestion: ${question}`,
+              text: `${SYSTEM_PROMPT}\n\nFAQ:\n${context}\n\nQuestion: ${question}`,
             },
           ],
         },
@@ -140,7 +146,7 @@ export function isExplicitHumanRequest(text) {
 }
 
 /**
- * Short greetings / chitchat that should not go through RAG or escalate.
+ * Short greetings / chitchat that should not go through FAQ LLM or escalate.
  */
 export function isGreetingOrChitchat(text) {
   const t = String(text || '')
