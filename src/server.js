@@ -7,6 +7,7 @@ import { connectDb } from './config/db.js';
 import { createApp } from './app.js';
 import { initChatSockets } from './sockets/chat.js';
 import { initPush } from './services/push.js';
+import { startConversationLifecycleJob } from './services/conversationLifecycle.js';
 import { logger } from './utils/logger.js';
 
 /**
@@ -35,6 +36,7 @@ export async function boot(options = {}) {
   });
   initChatSockets(io);
   initPush();
+  startConversationLifecycleJob();
 
   if (shouldListen) {
     await new Promise((resolve) => {

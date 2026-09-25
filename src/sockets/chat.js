@@ -1,4 +1,4 @@
-import { Conversation } from '../models/Conversation.js';
+import { Conversation, bumpConversationActivity } from '../models/Conversation.js';
 import { Message } from '../models/Message.js';
 import { handleChatMessage } from '../services/chat.js';
 import { logger } from '../utils/logger.js';
@@ -59,7 +59,10 @@ export function initChatSockets(serverIo) {
           text: payload.text,
           conversationId: payload.conversationId,
           customerName: payload.customerName,
+          customerEmail: payload.customerEmail,
+          customerPhone: payload.customerPhone,
           customerContact: payload.customerContact,
+          choiceId: payload.choiceId,
         });
 
         const response = {
@@ -69,6 +72,7 @@ export function initChatSockets(serverIo) {
           answer: result.answer,
           reason: result.reason || null,
           systemMessage: result.systemMessage || null,
+          options: result.options || [],
         };
 
         socket.join(`conversation:${response.conversationId}`);
@@ -112,7 +116,11 @@ export function initChatSockets(serverIo) {
             assignedAdminId: null,
           },
           {
-            $set: { status: 'claimed', assignedAdminId: adminId },
+            $set: {
+              status: 'claimed',
+              assignedAdminId: adminId,
+              lastActivityAt: new Date(),
+            },
           },
           { returnDocument: 'after' }
         );
@@ -165,6 +173,8 @@ export function initChatSockets(serverIo) {
           sender: 'admin',
           text,
         });
+
+        await bumpConversationActivity(conversation, 'admin');
 
         emitToConversation(conversationId, 'message:new', {
           sender: 'admin',

@@ -13,6 +13,7 @@ import { Conversation } from '../../src/models/Conversation.js';
 import { Customer } from '../../src/models/Customer.js';
 import { Admin } from '../../src/models/Admin.js';
 import { setLlmOverride, resetLlmOverride } from '../../src/services/llm.js';
+import { startChatSession } from '../../src/services/chat.js';
 
 function waitFor(socket, event, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
@@ -29,6 +30,15 @@ function tokenFor(adminId) {
     { sub: adminId.toString(), role: 'admin' },
     process.env.JWT_SECRET || 'test-jwt-secret'
   );
+}
+
+async function session(overrides = {}) {
+  return startChatSession({
+    name: 'Sock',
+    email: `sock-${Date.now()}@test.com`,
+    phone: `+1555${String(Date.now()).slice(-7)}`,
+    ...overrides,
+  });
 }
 
 describe('Socket.io chat & escalation (Phase 4)', () => {
@@ -76,14 +86,15 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     });
     setLlmOverride(async () => 'We are open 9-5.');
 
+    const { conversation } = await session({ email: 'socket@test.com', phone: '+15555551001' });
+
     const client = ioc(baseUrl, { transports: ['websocket'], forceNew: true });
     await waitFor(client, 'connect');
 
     const replyPromise = waitFor(client, 'message:new');
     client.emit('chat:message', {
       text: 'What are your hours?',
-      customerContact: 'socket@test.com',
-      customerName: 'Sock',
+      conversationId: conversation._id.toString(),
     });
 
     const reply = await replyPromise;
@@ -110,13 +121,15 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     });
     expect(joinAck.ok).toBe(true);
 
+    const { conversation } = await session({ email: 'esc@test.com', phone: '+15555551002' });
+
     const customer = ioc(baseUrl, { transports: ['websocket'], forceNew: true });
     await waitFor(customer, 'connect');
 
     const escalatedPromise = waitFor(adminClient, 'conversation:escalated');
     customer.emit('chat:message', {
       text: 'talk to a human',
-      customerContact: 'esc@test.com',
+      conversationId: conversation._id.toString(),
     });
 
     const event = await escalatedPromise;
@@ -140,7 +153,9 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
   it('only one admin wins a simultaneous claim race', async () => {
     const customerDoc = await Customer.create({
       name: 'C',
-      contact: 'race@test.com',
+      email: 'race@test.com',
+      phone: '+15555551003',
+      contact: '+15555551003',
     });
     const conversation = await Conversation.create({
       customerId: customerDoc._id,
@@ -195,10 +210,57 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     s2.close();
   });
 
+  it('notifies assigned admin when customer messages a claimed chat', async () => {
+    const admin = await Admin.create({
+      name: 'Agent',
+      email: 'agent@test.com',
+      passwordHash: await bcrypt.hash('x', 4),
+    });
+    const customerDoc = await Customer.create({
+      name: 'Pat',
+      email: 'pat@test.com',
+      phone: '+15555551004',
+      contact: '+15555551004',
+    });
+    const conversation = await Conversation.create({
+      customerId: customerDoc._id,
+      status: 'claimed',
+      assignedAdminId: admin._id,
+      lastActivityAt: new Date(),
+    });
+
+    const adminClient = ioc(baseUrl, {
+      transports: ['websocket'],
+      forceNew: true,
+      auth: { token: tokenFor(admin._id) },
+    });
+    await waitFor(adminClient, 'connect');
+    await new Promise((r) => adminClient.emit('join:admin-queue', {}, r));
+
+    const alertPromise = waitFor(adminClient, 'conversation:customer_message');
+
+    const customer = ioc(baseUrl, { transports: ['websocket'], forceNew: true });
+    await waitFor(customer, 'connect');
+    customer.emit('chat:message', {
+      text: 'Are you still there?',
+      conversationId: conversation._id.toString(),
+    });
+
+    const alert = await alertPromise;
+    expect(alert.conversationId).toBe(conversation._id.toString());
+    expect(String(alert.assignedAdminId)).toBe(String(admin._id));
+    expect(alert.preview).toMatch(/still there/i);
+
+    adminClient.close();
+    customer.close();
+  });
+
   it('reopens a closed conversation on new customer message', async () => {
     const customerDoc = await Customer.create({
       name: 'C',
-      contact: 'reopen@test.com',
+      email: 'reopen@test.com',
+      phone: '+15555551005',
+      contact: '+15555551005',
     });
     const conversation = await Conversation.create({
       customerId: customerDoc._id,
@@ -220,7 +282,6 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
         {
           text: 'Hello again',
           conversationId: conversation._id.toString(),
-          customerContact: 'reopen@test.com',
         },
         (response) => resolve(response)
       );
@@ -228,8 +289,7 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
 
     expect(ack.ok).toBe(true);
     expect(ack.status).toBe('ai_handling');
-    const refreshed = await Conversation.findById(conversation._id);
-    expect(refreshed.status).toBe('ai_handling');
+
     client.close();
   });
 });

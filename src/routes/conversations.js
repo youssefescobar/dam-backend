@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { Conversation } from '../models/Conversation.js';
 import { Message } from '../models/Message.js';
-import { Customer } from '../models/Customer.js';
+import { Customer, customerPublic } from '../models/Customer.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errorHandler.js';
@@ -13,7 +13,8 @@ const router = Router();
 router.use(requireAuth);
 
 /**
- * GET /conversations?status=needs_human|claimed|ai_handling|closed
+ * GET /conversations?status=&mine=1
+ * mine=1 with status=claimed (or alone) → assigned to current admin
  */
 router.get('/', async (req, res, next) => {
   try {
@@ -21,8 +22,25 @@ router.get('/', async (req, res, next) => {
     if (req.query.status) {
       filter.status = req.query.status;
     }
+    const mine =
+      req.query.mine === '1' ||
+      req.query.mine === 'true' ||
+      req.query.assigned === 'me';
+    if (mine) {
+      filter.assignedAdminId = req.admin._id;
+      if (!filter.status) filter.status = 'claimed';
+    }
+
+    let sort = { updatedAt: -1 };
+    if (filter.status === 'needs_human') {
+      // Oldest waiting first
+      sort = { lastActivityAt: 1, updatedAt: 1 };
+    } else if (filter.status === 'claimed' || mine) {
+      sort = { lastCustomerMessageAt: -1, lastActivityAt: -1 };
+    }
+
     const conversations = await Conversation.find(filter)
-      .sort({ updatedAt: -1 })
+      .sort(sort)
       .limit(100)
       .lean();
 
@@ -33,13 +51,12 @@ router.get('/', async (req, res, next) => {
     res.json({
       conversations: conversations.map((c) => ({
         ...c,
-        customer: byId[String(c.customerId)]
-          ? {
-              id: byId[String(c.customerId)]._id,
-              name: byId[String(c.customerId)].name,
-              contact: byId[String(c.customerId)].contact,
-            }
-          : null,
+        hasUnreadCustomerReply: Boolean(
+          c.lastCustomerMessageAt &&
+            (!c.lastAdminMessageAt ||
+              new Date(c.lastCustomerMessageAt) > new Date(c.lastAdminMessageAt))
+        ),
+        customer: customerPublic(byId[String(c.customerId)]),
       })),
     });
   } catch (err) {
@@ -65,12 +82,10 @@ router.patch('/:id', validateBody(patchSchema), async (req, res, next) => {
 
     if (req.body.status) {
       conversation.status = req.body.status;
-      if (req.body.status === 'closed') {
-        // keep assignedAdminId for history
-      }
       if (req.body.status === 'needs_human') {
         conversation.assignedAdminId = null;
       }
+      conversation.lastActivityAt = new Date();
     }
 
     await conversation.save();
@@ -116,9 +131,7 @@ router.get('/:id/messages', async (req, res, next) => {
     res.json({
       conversation: {
         ...conversation,
-        customer: customer
-          ? { id: customer._id, name: customer.name, contact: customer.contact }
-          : null,
+        customer: customerPublic(customer),
       },
       messages,
     });

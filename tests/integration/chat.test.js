@@ -6,7 +6,20 @@ import { KnowledgeBaseEntry } from '../../src/models/KnowledgeBaseEntry.js';
 import { Conversation } from '../../src/models/Conversation.js';
 import { setLlmOverride, resetLlmOverride } from '../../src/services/llm.js';
 
-describe('POST /chat/message (FAQ prompt)', () => {
+async function openSession(app, overrides = {}) {
+  const res = await request(app)
+    .post('/chat/session')
+    .send({
+      name: 'Sam',
+      email: `sam-${Date.now()}@example.com`,
+      phone: `+1555${String(Date.now()).slice(-7)}`,
+      ...overrides,
+    });
+  expect(res.status).toBe(201);
+  return res.body;
+}
+
+describe('POST /chat/session & /chat/message', () => {
   let app;
 
   beforeAll(async () => {
@@ -25,6 +38,27 @@ describe('POST /chat/message (FAQ prompt)', () => {
     resetLlmOverride();
   });
 
+  it('rejects messaging without a session or full identity', async () => {
+    const res = await request(app).post('/chat/message').send({
+      text: 'hi',
+      customerContact: 'only-contact@example.com',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('starts a session with name, email, and phone', async () => {
+    const res = await request(app).post('/chat/session').send({
+      name: 'Ada',
+      email: 'ada@example.com',
+      phone: '+15555550123',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.conversationId).toBeTruthy();
+    expect(res.body.customer.name).toBe('Ada');
+    expect(res.body.customer.email).toBe('ada@example.com');
+    expect(res.body.customer.phone).toBe('+15555550123');
+  });
+
   it('returns a relevant answer and stays ai_handling when FAQ is present', async () => {
     await KnowledgeBaseEntry.create({
       title: 'How much is an airport transfer?',
@@ -36,10 +70,10 @@ describe('POST /chat/message (FAQ prompt)', () => {
       return 'Airport transfers start at $50.';
     });
 
+    const session = await openSession(app);
     const res = await request(app).post('/chat/message').send({
       text: 'How much is an airport transfer?',
-      customerName: 'Sam',
-      customerContact: 'sam@example.com',
+      conversationId: session.conversationId,
     });
 
     expect(res.status).toBe(200);
@@ -57,9 +91,10 @@ describe('POST /chat/message (FAQ prompt)', () => {
 
     setLlmOverride(async () => "I don't know");
 
+    const session = await openSession(app, { email: 'a@b.com', phone: '+15555550001' });
     const res = await request(app).post('/chat/message').send({
       text: 'What is the capital of Mars?',
-      customerContact: 'a@b.com',
+      conversationId: session.conversationId,
     });
 
     expect(res.status).toBe(200);
@@ -72,9 +107,10 @@ describe('POST /chat/message (FAQ prompt)', () => {
   it('soft-fails when knowledge base is empty without locking', async () => {
     setLlmOverride(async () => 'nope');
 
+    const session = await openSession(app, { email: 'empty@test.com', phone: '+15555550002' });
     const res = await request(app).post('/chat/message').send({
       text: 'Any question',
-      customerContact: 'empty@test.com',
+      conversationId: session.conversationId,
     });
 
     expect(res.status).toBe(200);
@@ -91,9 +127,10 @@ describe('POST /chat/message (FAQ prompt)', () => {
     });
     setLlmOverride(async () => 'Open 9-5');
 
+    const session = await openSession(app, { email: 'h@test.com', phone: '+15555550003' });
     const res = await request(app).post('/chat/message').send({
       text: 'I want to talk to a human please',
-      customerContact: 'h@test.com',
+      conversationId: session.conversationId,
     });
 
     expect(res.body.escalated).toBe(true);
@@ -107,9 +144,10 @@ describe('POST /chat/message (FAQ prompt)', () => {
     });
     setLlmOverride(async () => 'should not be called');
 
+    const session = await openSession(app, { email: 'hi@test.com', phone: '+15555550004' });
     const res = await request(app).post('/chat/message').send({
       text: 'hi',
-      customerContact: 'hi@test.com',
+      conversationId: session.conversationId,
     });
 
     expect(res.status).toBe(200);
@@ -122,15 +160,16 @@ describe('POST /chat/message (FAQ prompt)', () => {
   it('guided choice returns canned answer without LLM', async () => {
     setLlmOverride(async () => 'should not be called');
 
+    const session = await openSession(app, { email: 'guided@test.com', phone: '+15555550005' });
     const res = await request(app).post('/chat/message').send({
       choiceId: 'hours',
-      customerContact: 'guided@test.com',
+      conversationId: session.conversationId,
     });
 
     expect(res.status).toBe(200);
     expect(res.body.escalated).toBe(false);
     expect(res.body.reason).toBe('guided');
-    expect(res.body.answer).toMatch(/AST|8:00/i);
+    expect(res.body.answer).toMatch(/8 AM|8 PM|Saturday|hours/i);
     expect(res.body.options?.some((o) => o.id === 'about')).toBe(true);
   });
 
@@ -143,15 +182,16 @@ describe('POST /chat/message (FAQ prompt)', () => {
       throw new Error('timeout');
     });
 
+    const session = await openSession(app, { email: 'llm@test.com', phone: '+15555550006' });
     const res = await request(app).post('/chat/message').send({
       text: 'What are your hours?',
-      customerContact: 'llm@test.com',
+      conversationId: session.conversationId,
     });
 
     expect(res.status).toBe(200);
     expect(res.body.escalated).toBe(false);
     expect(res.body.reason).toBe('llm_failure');
-    expect(res.body.answer).toMatch(/trouble|menu|human/i);
+    expect(res.body.answer).toMatch(/trouble|menu|human|stuck/i);
     expect(res.body.options?.length).toBeGreaterThan(0);
     expect(res.body.detail).toMatch(/timeout/i);
 

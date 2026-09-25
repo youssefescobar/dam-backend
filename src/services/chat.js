@@ -1,6 +1,6 @@
-import { Conversation } from '../models/Conversation.js';
+import { Conversation, bumpConversationActivity } from '../models/Conversation.js';
 import { Message } from '../models/Message.js';
-import { Customer } from '../models/Customer.js';
+import { Customer, findOrUpsertCustomer, customerPublic } from '../models/Customer.js';
 import { loadFaqEntries } from './faqPrompt.js';
 import {
   generateAnswer,
@@ -8,7 +8,7 @@ import {
   isExplicitHumanRequest,
   isGreetingOrChitchat,
 } from './llm.js';
-import { notifyAdmins } from './push.js';
+import { notifyAdmins, notifyAdmin } from './push.js';
 import { emitToAdminQueue, emitToConversation } from '../sockets/chat.js';
 import {
   MAIN_MENU_OPTIONS,
@@ -19,10 +19,26 @@ import {
 } from '../config/guidedChat.js';
 
 /**
+ * Start (or resume) a chat session after collecting identity.
+ * @param {{ name: string, email: string, phone: string }} input
+ */
+export async function startChatSession(input) {
+  const customer = await findOrUpsertCustomer(input);
+  const conversation = await Conversation.create({
+    customerId: customer._id,
+    status: 'ai_handling',
+    lastActivityAt: new Date(),
+  });
+  return { customer: customerPublic(customer), conversation };
+}
+
+/**
  * Process a customer chat message: guided menu → FAQ-in-prompt LLM → escalate if needed.
  * @param {{
  *   conversationId?: string,
  *   customerName?: string,
+ *   customerEmail?: string,
+ *   customerPhone?: string,
  *   customerContact?: string,
  *   text?: string,
  *   choiceId?: string,
@@ -49,20 +65,27 @@ export async function handleChatMessage(input) {
     await conversation.save();
   }
 
+  const messageText = text || choiceId;
+
   await Message.create({
     conversationId: conversation._id,
     sender: 'customer',
-    text: text || choiceId,
+    text: messageText,
   });
+
+  await bumpConversationActivity(conversation, 'customer');
 
   emitToConversation(conversation._id.toString(), 'message:new', {
     sender: 'customer',
-    text: text || choiceId,
+    text: messageText,
     conversationId: conversation._id.toString(),
   });
 
-  // Already with a human — don't run AI
+  // Already with a human — don't run AI; alert assigned agent if claimed
   if (conversation.status === 'claimed' || conversation.status === 'needs_human') {
+    if (conversation.status === 'claimed' && conversation.assignedAdminId) {
+      await alertAssignedAdmin(conversation, messageText);
+    }
     return {
       conversation,
       escalated: conversation.status === 'needs_human',
@@ -118,7 +141,6 @@ export async function handleChatMessage(input) {
       faqEntries,
     });
   } catch (err) {
-    // Soft-fail: do not escalate — that locks the conversation and blocks all future AI.
     return replyAi(
       conversation,
       "Sorry, I’m a bit stuck right now. Try a menu option, wait a moment, or ask for a human.",
@@ -146,7 +168,6 @@ function replyDelayMs() {
   if (process.env.NODE_ENV === 'test') return 0;
   const configured = Number(process.env.CHAT_REPLY_DELAY_MS);
   if (Number.isFinite(configured) && configured >= 0) return configured;
-  // Slight pause so replies feel human (not instant)
   return 900 + Math.floor(Math.random() * 700);
 }
 
@@ -162,6 +183,8 @@ async function replyAi(conversation, answer, extra = {}) {
     sender: 'ai',
     text: answer,
   });
+
+  await bumpConversationActivity(conversation, 'ai');
 
   emitToConversation(conversation._id.toString(), 'message:new', {
     sender: 'ai',
@@ -186,33 +209,59 @@ async function resolveConversation(input) {
     if (existing) return existing;
   }
 
-  let customer = null;
-  if (input.customerContact) {
-    customer = await Customer.findOne({ contact: input.customerContact });
-    if (!customer) {
-      customer = await Customer.create({
-        name: input.customerName || 'Guest',
-        contact: input.customerContact,
-        channel: 'web',
-      });
-    }
-  } else {
-    customer = await Customer.create({
-      name: input.customerName || 'Guest',
-      contact: `guest-${Date.now()}@local`,
-      channel: 'web',
-    });
+  const name = String(input.customerName || '').trim();
+  const email = String(input.customerEmail || '').trim().toLowerCase();
+  const phone = String(input.customerPhone || '').trim();
+
+  // Legacy: single contact field — only allowed if name + contact look complete enough
+  // Prefer explicit email+phone. No guest fallback.
+  if (!name || !email || !phone) {
+    const err = new Error(
+      'Start a chat session first (name, email, and phone), or pass conversationId'
+    );
+    err.status = 400;
+    throw err;
   }
 
+  const customer = await findOrUpsertCustomer({ name, email, phone });
   return Conversation.create({
     customerId: customer._id,
     status: 'ai_handling',
+    lastActivityAt: new Date(),
   });
+}
+
+async function alertAssignedAdmin(conversation, text) {
+  const conversationId = conversation._id.toString();
+  const assignedAdminId = String(conversation.assignedAdminId);
+  const customer = await Customer.findById(conversation.customerId).lean();
+  const preview = String(text || '').slice(0, 120);
+  const name = customer?.name || 'Customer';
+
+  const payload = {
+    conversationId,
+    assignedAdminId,
+    preview,
+    customerName: name,
+  };
+
+  emitToAdminQueue('conversation:customer_message', payload);
+
+  notifyAdmin(assignedAdminId, {
+    title: 'New message',
+    body: `${name}: ${preview || 'Sent a message'}`,
+    data: {
+      type: 'customer_message',
+      conversationId,
+      url: `/inbox?c=${conversationId}`,
+    },
+  }).catch(() => {});
 }
 
 async function escalate(conversation, reason, detail) {
   conversation.status = 'needs_human';
   conversation.assignedAdminId = null;
+  conversation.lastActivityAt = new Date();
   await conversation.save();
 
   const notice =
@@ -242,7 +291,11 @@ async function escalate(conversation, reason, detail) {
   notifyAdmins({
     title: 'Chat needs a human',
     body: `Conversation escalated (${reason})`,
-    data: { type: 'escalation', url: '/inbox', ...payload },
+    data: {
+      type: 'escalation',
+      url: `/inbox?c=${payload.conversationId}`,
+      ...payload,
+    },
   }).catch(() => {});
 
   return {

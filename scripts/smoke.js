@@ -36,12 +36,27 @@ async function main() {
   }
   console.log('✓ POST /quotes');
 
+  const sessionRes = await fetch(`${BASE}/chat/session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Smoke Chat',
+      email: `smoke-chat-${Date.now()}@example.com`,
+      phone: `+1555${String(Date.now()).slice(-7)}`,
+    }),
+  });
+  const sessionBody = await sessionRes.json();
+  if (sessionRes.status !== 201 || !sessionBody.conversationId) {
+    throw new Error(`POST /chat/session failed: ${sessionRes.status} ${JSON.stringify(sessionBody)}`);
+  }
+  console.log('✓ POST /chat/session');
+
   const chatRes = await fetch(`${BASE}/chat/message`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       text: 'talk to a human',
-      customerContact: `smoke-chat-${Date.now()}@example.com`,
+      conversationId: sessionBody.conversationId,
     }),
   });
   const chatBody = await chatRes.json();

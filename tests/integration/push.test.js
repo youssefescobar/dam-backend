@@ -112,13 +112,17 @@ describe('Push notifications (Phase 5)', () => {
     });
     expect(res.status).toBe(201);
 
-    await new Promise((r) => setTimeout(r, 50));
+    const deadline = Date.now() + 2000;
+    while (sent.length < 1 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
 
     expect(sent.length).toBeGreaterThanOrEqual(1);
     expect(sent[0].payload.title).toMatch(/quote/i);
   });
 
   it('removes expired subscriptions after failed push', async () => {
+    sent.length = 0;
     const admin = await Admin.findById(adminId);
     admin.pushSubscriptions = [
       {

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Router } from 'express';
 import { Quote } from '../models/Quote.js';
-import { Customer } from '../models/Customer.js';
+import { findOrUpsertCustomer } from '../models/Customer.js';
 import { Conversation } from '../models/Conversation.js';
 import { Message } from '../models/Message.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -12,6 +12,8 @@ import { notifyAdmins } from '../services/push.js';
 const createQuoteSchema = z.object({
   customerName: z.string().min(1, 'customerName is required'),
   customerContact: z.string().min(1, 'customerContact is required'),
+  customerEmail: z.string().email().optional(),
+  customerPhone: z.string().optional(),
   pickup: z.string().min(1, 'pickup is required'),
   dropoff: z.string().min(1, 'dropoff is required'),
   date: z.coerce.date({ error: 'date is required' }),
@@ -32,19 +34,22 @@ const router = Router();
 router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
   try {
     const data = req.body;
+    const contact = data.customerContact.trim();
+    const looksEmail = contact.includes('@');
+    const email = (data.customerEmail || (looksEmail ? contact : `${contact.replace(/\W/g, '') || 'quote'}@quote.local`)).toLowerCase();
+    const phone = data.customerPhone || (!looksEmail ? contact : '+10000000000');
 
-    let customer = await Customer.findOne({ contact: data.customerContact });
-    if (!customer) {
-      customer = await Customer.create({
-        name: data.customerName,
-        contact: data.customerContact,
-        channel: data.channel,
-      });
-    }
+    const customer = await findOrUpsertCustomer({
+      name: data.customerName,
+      email,
+      phone,
+      channel: data.channel,
+    });
 
     const conversation = await Conversation.create({
       customerId: customer._id,
       status: 'ai_handling',
+      lastActivityAt: new Date(),
     });
 
     const quote = await Quote.create({
