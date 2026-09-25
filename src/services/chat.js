@@ -235,7 +235,7 @@ async function alertAssignedAdmin(conversation, text) {
   const conversationId = conversation._id.toString();
   const assignedAdminId = String(conversation.assignedAdminId);
   const customer = await Customer.findById(conversation.customerId).lean();
-  const preview = String(text || '').slice(0, 120);
+  const preview = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 100);
   const name = customer?.name || 'Customer';
 
   const payload = {
@@ -248,8 +248,8 @@ async function alertAssignedAdmin(conversation, text) {
   emitToAdminQueue('conversation:customer_message', payload);
 
   notifyAdmin(assignedAdminId, {
-    title: 'New message',
-    body: `${name}: ${preview || 'Sent a message'}`,
+    title: `${name} replied`,
+    body: preview || 'Open the chat to read their message.',
     data: {
       type: 'customer_message',
       conversationId,
@@ -279,22 +279,28 @@ async function escalate(conversation, reason, detail) {
     conversationId: conversation._id.toString(),
   });
 
+  const customer = await Customer.findById(conversation.customerId).lean();
+  const customerName = customer?.name || null;
+
   const payload = {
     conversationId: conversation._id.toString(),
     reason,
     detail: detail || null,
+    customerName,
   };
 
   emitToAdminQueue('conversation:escalated', payload);
   emitToConversation(conversation._id.toString(), 'conversation:escalated', payload);
 
   notifyAdmins({
-    title: 'Chat needs a human',
-    body: `Conversation escalated (${reason})`,
+    title: 'Chat waiting',
+    body: customerName
+      ? `${customerName} asked to speak with someone.`
+      : 'A customer is waiting for a reply in Inbox.',
     data: {
       type: 'escalation',
       url: `/inbox?c=${payload.conversationId}`,
-      ...payload,
+      conversationId: payload.conversationId,
     },
   }).catch(() => {});
 

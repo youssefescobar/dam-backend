@@ -68,8 +68,8 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
 
     // Fire-and-forget push (no-op if VAPID not configured / Phase 5)
     notifyAdmins({
-      title: 'New quote request',
-      body: `${data.customerName}: ${data.pickup} → ${data.dropoff}`,
+      title: 'New quote',
+      body: `${data.customerName} · ${data.pickup} → ${data.dropoff}`,
       data: {
         type: 'quote',
         quoteId: quote._id.toString(),

@@ -45,8 +45,8 @@ const CATALOG = {
     },
   },
   escalation: {
-    title: 'Chat needs a human',
-    body: 'Conversation escalated (low_similarity)',
+    title: 'Chat waiting',
+    body: 'A customer asked to speak with someone.',
     data: {
       type: 'escalation',
       conversationId: 'test-conversation-id',

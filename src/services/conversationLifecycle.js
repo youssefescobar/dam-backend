@@ -87,8 +87,8 @@ async function autoCloseConversation(conversation) {
 
   if (assignedAdminId) {
     notifyAdmin(assignedAdminId, {
-      title: 'Chat auto-closed',
-      body: 'A claimed chat closed after inactivity.',
+      title: 'Chat closed',
+      body: 'Closed automatically after no reply for a while.',
       data: {
         type: 'closed',
         conversationId,
