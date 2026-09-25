@@ -71,7 +71,7 @@ const patchSchema = z
   .refine((b) => Boolean(b.status), { message: 'status is required' });
 
 /**
- * PATCH /conversations/:id — close or update status
+ * PATCH /conversations/:id - close or update status
  */
 router.patch('/:id', validateBody(patchSchema), async (req, res, next) => {
   try {
@@ -107,6 +107,29 @@ router.patch('/:id', validateBody(patchSchema), async (req, res, next) => {
     }
 
     res.json({ conversation });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * DELETE /conversations/:id - permanently remove chat + messages
+ */
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const conversation = await Conversation.findById(req.params.id);
+    if (!conversation) {
+      throw new HttpError(404, 'Conversation not found');
+    }
+
+    const conversationId = conversation._id.toString();
+    await Message.deleteMany({ conversationId: conversation._id });
+    await conversation.deleteOne();
+
+    emitToAdminQueue('conversation:deleted', { conversationId });
+    emitToConversation(conversationId, 'conversation:deleted', { conversationId });
+
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

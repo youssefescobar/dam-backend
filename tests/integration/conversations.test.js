@@ -123,4 +123,27 @@ describe('Conversations (admin)', () => {
     expect(res.body.messages).toHaveLength(2);
     expect(res.body.conversation.customer.contact).toBe('+15555550111');
   });
+
+  it('deletes a conversation and its messages', async () => {
+    const customer = await Customer.create(
+      customerFixture({ email: 'del@example.com', phone: '+15555550999', contact: '+15555550999' })
+    );
+    const conversation = await Conversation.create({
+      customerId: customer._id,
+      status: 'closed',
+    });
+    await Message.create({
+      conversationId: conversation._id,
+      sender: 'customer',
+      text: 'Bye',
+    });
+
+    const res = await request(app)
+      .delete(`/conversations/${conversation._id}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(204);
+    expect(await Conversation.findById(conversation._id)).toBeNull();
+    expect(await Message.countDocuments({ conversationId: conversation._id })).toBe(0);
+  });
 });

@@ -160,10 +160,10 @@ export function greetingReply(text) {
     return "You're so welcome! Anything else I can help with?";
   }
   if (/bye|goodbye|see you/.test(t)) {
-    return 'Take care — message us anytime.';
+    return 'Take care. Message us anytime.';
   }
   if (/^(ok|okay|cool|great|nice)\b/.test(t.trim())) {
     return 'Perfect. Ask about routes, hours, Hajj & Umrah, or get a quote anytime.';
   }
-  return "Hi! Happy to help with Durrah Al Munawwara transport — routes, hours, Hajj & Umrah, or a quick quote.";
+  return 'Hi! Happy to help with Durrah Al Munawwara transport: routes, hours, Hajj & Umrah, or a quick quote.';
 }

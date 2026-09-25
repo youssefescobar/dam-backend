@@ -129,7 +129,7 @@ export async function handleChatMessage(input) {
   if (!faqEntries.length) {
     return replyAi(
       conversation,
-      "I don’t have that yet — pick an option below, or ask to talk to a human.",
+      "I don’t have that yet. Pick an option below, or ask to talk to a human.",
       { reason: 'empty_kb', options: MAIN_MENU_OPTIONS },
     );
   }
@@ -265,7 +265,7 @@ async function escalate(conversation, reason, detail) {
   await conversation.save();
 
   const notice =
-    "I'm connecting you with a teammate now — someone will be with you shortly.";
+    "I'm connecting you with a teammate now. Someone will be with you shortly.";
 
   await Message.create({
     conversationId: conversation._id,

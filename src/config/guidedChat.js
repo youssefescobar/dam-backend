@@ -1,5 +1,5 @@
 /**
- * Guided (menu) chat — canned answers + buttons, no LLM required.
+ * Guided (menu) chat: canned answers + buttons, no LLM required.
  */
 
 export const MAIN_MENU_OPTIONS = [
@@ -18,17 +18,17 @@ export const MAIN_MENU_OPTIONS = [
 export const GUIDED_NODES = {
   about: {
     answer:
-      'We’re Durrah Al Munawwara Transport — Saudi logistics since 2014. Hajj & Umrah shuttles, international buses, and daily worker transfers with live fleet tracking.',
+      'We’re Durrah Al Munawwara Transport, Saudi logistics since 2014. Hajj & Umrah shuttles, international buses, and daily worker transfers with live fleet tracking.',
     options: 'main',
   },
   hours: {
     answer:
-      'We’re usually here Saturday–Thursday, 8 AM–8 PM Saudi time. Peak Hajj/Umrah seasons may run longer hours.',
+      'We’re usually here Saturday to Thursday, 8 AM to 8 PM Saudi time. Peak Hajj/Umrah seasons may run longer hours.',
     options: 'main',
   },
   airport: {
     answer:
-      'Yes — airport and city transfers are available. Price depends on route, vehicle, and passengers. Tap “How to get a quote” or share your trip details.',
+      'Yes, airport and city transfers are available. Price depends on route, vehicle, and passengers. Tap “How to get a quote” or share your trip details.',
     options: 'main',
   },
   hajj: {
@@ -48,14 +48,14 @@ export const GUIDED_NODES = {
   },
   quote: {
     answer:
-      'Happy to quote you — send name, contact, pickup, dropoff, date, vehicle type, and passenger count.',
+      'Happy to quote you. Send name, contact, pickup, dropoff, date, vehicle type, and passenger count.',
     options: 'main',
   },
   human: {
     escalate: true,
   },
   free_text: {
-    answer: 'Of course — type your question below and I’ll do my best to help.',
+    answer: 'Of course. Type your question below and I’ll do my best to help.',
     options: [],
     freeText: true,
   },
@@ -88,5 +88,5 @@ export function getWelcomePayload() {
 }
 
 export function greetingWelcome() {
-  return "Hi! Welcome to Durrah Al Munawwara. Pick a topic below, or type your own question anytime.";
+  return 'Hi! Welcome to Durrah Al Munawwara. Pick a topic below, or type your own question anytime.';
 }
