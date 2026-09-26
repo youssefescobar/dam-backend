@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
 import { loadEnv } from './config/env.js';
+import { resolveSocketCorsOrigin } from './config/corsOrigins.js';
 import { connectDb } from './config/db.js';
 import { createApp } from './app.js';
 import { initChatSockets } from './sockets/chat.js';
@@ -26,12 +27,7 @@ export async function boot(options = {}) {
 
   const io = new Server(server, {
     cors: {
-      origin: (() => {
-        const raw = (env.corsOrigin || '*').trim();
-        if (!raw || raw === '*') return true;
-        const list = raw.split(',').map((item) => item.trim()).filter(Boolean);
-        return list.length === 1 ? list[0] : list;
-      })(),
+      origin: resolveSocketCorsOrigin(env.corsOrigin),
     },
   });
   initChatSockets(io);
