@@ -371,11 +371,4 @@ fs.writeFileSync(path.join(dataDir, 'kb-info-full.csv'), toCsv('en'), 'utf8');
 fs.writeFileSync(path.join(dataDir, 'kb-info-full.ar.csv'), toCsv('ar'), 'utf8');
 fs.writeFileSync(path.join(root, 'info.en.md'), buildEnMarkdown(), 'utf8');
 
-// Also dump JSON source for tooling
-fs.writeFileSync(
-  path.join(dataDir, 'kb-info-entries.json'),
-  JSON.stringify(entries, null, 2),
-  'utf8'
-);
-
 console.log(`Wrote ${entries.length} entries → kb-info-full.csv, kb-info-full.ar.csv, info.en.md`);

@@ -8,7 +8,7 @@ Transportation company API: FAQ-in-prompt Q&A, quote requests, Socket.io human e
 |-------|--------|
 | Runtime | Node.js + Express (ESM) |
 | Database | MongoDB Atlas (M0) / `mongodb-memory-server` in tests |
-| Knowledge | Mongo FAQ rows (`title` / `content`) injected into the LLM prompt |
+| Knowledge | Mongo FAQ rows (`title` / `content` + intent/category/locale) from `data/kb-info-full*.csv` injected into the LLM prompt |
 | LLM | Gemini (`gemini-3.1-flash-lite`, fallback `gemini-3.5-flash-lite`) |
 | Realtime | Socket.io |
 | Push | Web Push (VAPID) |
@@ -37,7 +37,7 @@ npx web-push generate-vapid-keys
 | `npm start` | Boot API + Socket.io |
 | `npm test` / `npm run test:jest` | Jest suites |
 | `npm run seed:admin` | Create first admin |
-| `npm run seed:kb` | Import `data/kb-questions.csv` (upsert by title; set `KB_REPLACE_ALL=1` to wipe first) |
+| `npm run seed:kb` | Import `data/kb-info-full.csv` + `.ar.csv` (upsert; set `KB_REPLACE_ALL=1` to wipe first) |
 | `npm run smoke` | Smoke-test a running server (`BASE_URL`) |
 
 ## API overview
