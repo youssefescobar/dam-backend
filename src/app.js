@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { errorHandler } from './middleware/errorHandler.js';
+import { resolveCorsOrigin } from './config/corsOrigins.js';
 import healthRouter from './routes/health.js';
 import authRouter from './routes/auth.js';
 import quotesRouter from './routes/quotes.js';
@@ -10,26 +11,6 @@ import chatRouter from './routes/chat.js';
 import pushRouter from './routes/push.js';
 import conversationsRouter from './routes/conversations.js';
 import settingsRouter from './routes/settings.js';
-
-/**
- * CORS_ORIGIN may be `*`, a single origin, or a comma-separated list.
- * @param {string | undefined} raw
- */
-function resolveCorsOrigin(raw) {
-  const value = (raw || '*').trim();
-  if (!value || value === '*') return true;
-
-  const allowed = value.split(',').map((item) => item.trim()).filter(Boolean);
-  if (allowed.length === 1) return allowed[0];
-
-  return (origin, callback) => {
-    if (!origin || allowed.includes(origin)) {
-      callback(null, true);
-      return;
-    }
-    callback(new Error(`CORS blocked for origin: ${origin}`));
-  };
-}
 
 /**
  * Create Express application (no listen / no DB connect).
