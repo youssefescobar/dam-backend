@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { validateBody } from '../middleware/validate.js';
 import { handleChatMessage, startChatSession } from '../services/chat.js';
 import { getWelcomePayload, MAIN_MENU_OPTIONS } from '../config/guidedChat.js';
+import { getCompanySettings } from '../models/Settings.js';
 
 const sessionSchema = z.object({
   name: z.string().min(1, 'name is required'),
@@ -37,13 +38,23 @@ const chatLimiter = rateLimit({
 });
 
 /** Initial guided menu (no conversation yet). */
-router.get('/guided', (_req, res) => {
-  const welcome = getWelcomePayload();
-  res.json({
-    answer: welcome.answer,
-    options: welcome.options,
-    reason: welcome.reason,
-  });
+router.get('/guided', async (_req, res, next) => {
+  try {
+    let settings = null;
+    try {
+      settings = await getCompanySettings();
+    } catch {
+      /* optional */
+    }
+    const welcome = getWelcomePayload(settings);
+    res.json({
+      answer: welcome.answer,
+      options: welcome.options,
+      reason: welcome.reason,
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.get('/options', (_req, res) => {

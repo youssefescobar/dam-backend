@@ -10,18 +10,28 @@ import { importKnowledgeEntries } from '../services/kbImport.js';
 const kbSchema = z.object({
   title: z.string().min(1, 'title is required'),
   content: z.string().min(1, 'content is required'),
+  sourceId: z.string().optional().nullable(),
+  intent: z.string().optional().default(''),
+  category: z.string().optional().default(''),
+  locale: z.enum(['en', 'ar']).optional().default('en'),
+  escalate: z.boolean().optional().default(false),
+  requiresLiveData: z.boolean().optional().default(false),
+});
+
+const entryImportSchema = z.object({
+  title: z.string().min(1),
+  content: z.string().min(1),
+  sourceId: z.string().optional(),
+  intent: z.string().optional(),
+  category: z.string().optional(),
+  locale: z.enum(['en', 'ar']).optional(),
+  escalate: z.boolean().optional(),
+  requiresLiveData: z.boolean().optional(),
 });
 
 const importSchema = z
   .object({
-    entries: z
-      .array(
-        z.object({
-          title: z.string().min(1),
-          content: z.string().min(1),
-        })
-      )
-      .optional(),
+    entries: z.array(entryImportSchema).optional(),
     csv: z.string().optional(),
     mode: z.enum(['append', 'upsert']).optional(),
     replaceAll: z.boolean().optional(),
@@ -39,6 +49,12 @@ router.post('/', validateBody(kbSchema), async (req, res, next) => {
     const entry = await KnowledgeBaseEntry.create({
       title: req.body.title,
       content: req.body.content,
+      sourceId: req.body.sourceId || null,
+      intent: req.body.intent || '',
+      category: req.body.category || '',
+      locale: req.body.locale || 'en',
+      escalate: Boolean(req.body.escalate),
+      requiresLiveData: Boolean(req.body.requiresLiveData),
     });
     res.status(201).json({ entry });
   } catch (err) {
@@ -79,6 +95,14 @@ router.put('/:id', validateBody(kbSchema), async (req, res, next) => {
     }
     entry.title = req.body.title;
     entry.content = req.body.content;
+    if (req.body.sourceId !== undefined) entry.sourceId = req.body.sourceId || null;
+    if (req.body.intent !== undefined) entry.intent = req.body.intent || '';
+    if (req.body.category !== undefined) entry.category = req.body.category || '';
+    if (req.body.locale !== undefined) entry.locale = req.body.locale;
+    if (req.body.escalate !== undefined) entry.escalate = Boolean(req.body.escalate);
+    if (req.body.requiresLiveData !== undefined) {
+      entry.requiresLiveData = Boolean(req.body.requiresLiveData);
+    }
     await entry.save();
     res.json({ entry });
   } catch (err) {
@@ -110,9 +134,20 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.get('/', async (_req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
-    const entries = await KnowledgeBaseEntry.find().sort({ updatedAt: -1 }).lean();
+    const filter = {};
+    if (req.query.locale === 'ar' || req.query.locale === 'en') {
+      filter.locale = req.query.locale;
+    }
+    if (req.query.category) filter.category = String(req.query.category);
+    if (req.query.intent) filter.intent = String(req.query.intent);
+    if (req.query.escalate === 'true') filter.escalate = true;
+    if (req.query.escalate === 'false') filter.escalate = false;
+
+    const entries = await KnowledgeBaseEntry.find(filter)
+      .sort({ sourceId: 1, updatedAt: -1 })
+      .lean();
     res.json({ entries });
   } catch (err) {
     next(err);

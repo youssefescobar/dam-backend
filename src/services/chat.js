@@ -6,6 +6,7 @@ import {
   generateAnswer,
   looksLikeDontKnow,
   isExplicitHumanRequest,
+  isImmediateSafetyEscalation,
   isGreetingOrChitchat,
 } from './llm.js';
 import { notifyAdmins, notifyAdmin } from './push.js';
@@ -16,7 +17,9 @@ import {
   findChoiceIdByLabel,
   resolveGuidedOptions,
   greetingWelcome,
+  applySettingsToGuidedAnswer,
 } from '../config/guidedChat.js';
+import { getCompanySettings } from '../models/Settings.js';
 
 /**
  * Start (or resume) a chat session after collecting identity.
@@ -99,12 +102,24 @@ export async function handleChatMessage(input) {
     return escalate(conversation, 'explicit_human_request');
   }
 
+  if (isImmediateSafetyEscalation(text)) {
+    return escalate(conversation, 'safety_critical');
+  }
+
+  let settings = null;
+  try {
+    settings = await getCompanySettings();
+  } catch {
+    /* optional */
+  }
+
   const guided = choiceId ? getGuidedNode(choiceId) : null;
   if (guided) {
     if (guided.escalate) {
       return escalate(conversation, 'explicit_human_request');
     }
-    const answer = guided.answer || '';
+    const answer =
+      applySettingsToGuidedAnswer(choiceId, settings) || guided.answer || '';
     const options = resolveGuidedOptions(guided.options);
     return replyAi(conversation, answer, {
       reason: guided.freeText ? 'guided_free_text' : 'guided',
@@ -113,7 +128,7 @@ export async function handleChatMessage(input) {
   }
 
   if (isGreetingOrChitchat(text)) {
-    return replyAi(conversation, greetingWelcome(), {
+    return replyAi(conversation, greetingWelcome(settings), {
       reason: 'greeting',
       options: MAIN_MENU_OPTIONS,
     });

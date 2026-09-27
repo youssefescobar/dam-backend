@@ -2,10 +2,17 @@ import { logger } from '../utils/logger.js';
 import { formatFaqBlock } from './faqPrompt.js';
 
 export const SYSTEM_PROMPT =
-  'You are a warm, friendly assistant for Durrah Al Munawwara Transport (DAMAC). ' +
+  'You are a warm, friendly assistant for Durrah Al-Munawwara Transport (درة المنورة للنقل). ' +
   'Answer ONLY from the FAQ below — never invent details. ' +
-  'Keep replies short and sweet: 1–3 short sentences, plain language, no bullet walls. ' +
-  'Sound human and caring, not corporate. ' +
+  'Hard rules: never invent prices, schedules, availability, licenses, compensation, or fixed cancel/refund percentages. ' +
+  'A request is not a booking until official confirmation. ' +
+  'Never ask for passwords, OTP codes, or card data in chat — payment only on official gateways. ' +
+  'Ask at most one follow-up question. ' +
+  'If an FAQ row is marked escalate=true or the user reports an accident, unsafe driving, a missing person, fraud, or asks for a human, reply exactly with: I don\'t know ' +
+  '(so the system can escalate). ' +
+  'If a row is marked requires_live_data=true, say the team will confirm from current data — do not invent numbers. ' +
+  'Hajj-season pilgrim transport is contracted via the mission and electronic path, not direct pilgrim booking. ' +
+  'Keep replies short: 1–3 short sentences, plain language. ' +
   "Match the user's language (Arabic or English). " +
   'If the FAQ does not contain enough information, reply exactly with: I don\'t know';
 
@@ -128,11 +135,20 @@ export function looksLikeDontKnow(answer) {
 }
 
 const HUMAN_REQUEST_RE =
-  /\b(talk to (a )?human|speak to (a )?(human|agent|person)|real person|human please|customer service)\b/i;
+  /\b(talk to (a )?human|speak to (a )?(human|agent|person)|real person|human please|customer service)\b|أريد\s*(موظف|بشري|شخص)|تحدث\s*مع\s*موظف|موظف\s*بشري/i;
 
 export function isExplicitHumanRequest(text) {
   return HUMAN_REQUEST_RE.test(String(text || ''));
 }
+
+/** Immediate safety / critical escalation (info.md triggers). */
+const SAFETY_ESCALATE_RE =
+  /\b(accident|crash|collision|injured|injury|unsafe\s+driv|missing\s+(child|person|kid)|kidnap|fraud|scam|emergency|911)\b|حادث|إصابة|قيادة\s*غير\s*آمنة|مفقود|احتيال|طوارئ|خطر\s*مباشر/i;
+
+export function isImmediateSafetyEscalation(text) {
+  return SAFETY_ESCALATE_RE.test(String(text || ''));
+}
+
 
 /**
  * Short greetings / chitchat that should not go through FAQ LLM or escalate.

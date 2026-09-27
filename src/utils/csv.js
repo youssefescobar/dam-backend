@@ -1,17 +1,33 @@
 /**
- * Minimal CSV parser for title,content rows (RFC4180-ish quoted fields).
+ * Minimal CSV parser (RFC4180-ish quoted fields).
+ * Supports KB columns: title/question, content/answer, plus optional metadata.
  * @param {string} text
- * @returns {{ title: string, content: string }[]}
+ * @returns {Array<{
+ *   title: string,
+ *   content: string,
+ *   sourceId?: string,
+ *   intent?: string,
+ *   category?: string,
+ *   locale?: string,
+ *   escalate?: boolean,
+ *   requiresLiveData?: boolean,
+ * }>}
  */
 export function parseKbCsv(text) {
   const rows = parseCsvRows(String(text || '').replace(/^\uFEFF/, ''));
   if (!rows.length) return [];
 
   const header = rows[0].map((h) => h.trim().toLowerCase());
-  const titleIdx = header.findIndex((h) => h === 'title' || h === 'question');
-  const contentIdx = header.findIndex(
-    (h) => h === 'content' || h === 'answer' || h === 'body'
-  );
+  const col = (names) => header.findIndex((h) => names.includes(h));
+
+  const titleIdx = col(['title', 'question']);
+  const contentIdx = col(['content', 'answer', 'body']);
+  const idIdx = col(['id', 'sourceid', 'source_id']);
+  const intentIdx = col(['intent']);
+  const categoryIdx = col(['category']);
+  const localeIdx = col(['locale', 'language', 'lang']);
+  const escalateIdx = col(['escalate', 'escalation']);
+  const liveIdx = col(['requires_live_data', 'requireslivedata', 'live_data']);
 
   const start = titleIdx >= 0 && contentIdx >= 0 ? 1 : 0;
   const tCol = titleIdx >= 0 ? titleIdx : 0;
@@ -24,9 +40,26 @@ export function parseKbCsv(text) {
     const title = String(row[tCol] ?? '').trim();
     const content = String(row[cCol] ?? '').trim();
     if (!title || !content) continue;
-    entries.push({ title, content });
+
+    const entry = { title, content };
+    if (idIdx >= 0) entry.sourceId = String(row[idIdx] ?? '').trim() || undefined;
+    if (intentIdx >= 0) entry.intent = String(row[intentIdx] ?? '').trim() || undefined;
+    if (categoryIdx >= 0) entry.category = String(row[categoryIdx] ?? '').trim() || undefined;
+    if (localeIdx >= 0) {
+      const loc = String(row[localeIdx] ?? '').trim().toLowerCase();
+      if (loc === 'ar' || loc === 'en') entry.locale = loc;
+    }
+    if (escalateIdx >= 0) entry.escalate = parseBool(row[escalateIdx]);
+    if (liveIdx >= 0) entry.requiresLiveData = parseBool(row[liveIdx]);
+
+    entries.push(entry);
   }
   return entries;
+}
+
+function parseBool(value) {
+  const v = String(value ?? '').trim().toLowerCase();
+  return v === 'true' || v === '1' || v === 'yes';
 }
 
 /**
@@ -66,7 +99,7 @@ function parseCsvRows(text) {
       row = [];
       field = '';
     } else if (ch === '\r') {
-      // skip; handle \r\n via \n
+      // skip
     } else {
       field += ch;
     }

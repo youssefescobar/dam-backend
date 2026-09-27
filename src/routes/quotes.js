@@ -12,21 +12,53 @@ import { notifyAdmins } from '../services/push.js';
 const createQuoteSchema = z.object({
   customerName: z.string().min(1, 'customerName is required'),
   customerContact: z.string().min(1, 'customerContact is required'),
-  customerEmail: z.string().email().optional(),
+  customerEmail: z.string().email().optional().or(z.literal('')),
   customerPhone: z.string().optional(),
   pickup: z.string().min(1, 'pickup is required'),
   dropoff: z.string().min(1, 'dropoff is required'),
   date: z.coerce.date({ error: 'date is required' }),
-  vehicleType: z.string().min(1, 'vehicleType is required'),
+  vehicleType: z.string().min(1).default('standard'),
   passengers: z.coerce.number().int().min(1, 'passengers must be at least 1'),
   notes: z.string().optional().default(''),
   channel: z.enum(['web', 'whatsapp', 'phone', 'other']).optional().default('web'),
+  language: z.enum(['ar', 'en']).optional(),
+  customerType: z
+    .enum([
+      'individual',
+      'company',
+      'government',
+      'school',
+      'hajj_mission',
+      'tourism',
+      'group',
+      'corporate',
+    ])
+    .optional(),
+  organization: z.string().optional().default(''),
+  email: z.string().email().optional().or(z.literal('')),
+  serviceType: z.string().optional().default(''),
+  originCity: z.string().optional().default(''),
+  destinationCity: z.string().optional().default(''),
+  returnDatetime: z.coerce.date().optional().nullable(),
+  tripType: z.string().optional().default(''),
+  busCount: z.coerce.number().int().min(1).optional().nullable(),
+  busClass: z.string().optional().default(''),
+  luggageNotes: z.string().optional().default(''),
+  accessibilityNeeds: z.string().optional().default(''),
+  specialRequirements: z.string().optional().default(''),
+  preferredContactChannel: z.enum(['phone', 'whatsapp', 'email', 'web']).optional(),
+  consent: z.boolean().optional().default(false),
+  priority: z.enum(['normal', 'high', 'urgent']).optional().default('normal'),
 });
 
 const patchQuoteSchema = z.object({
   status: z.enum(['new', 'quoted', 'won', 'lost']).optional(),
   quotedPrice: z.number().positive().optional().nullable(),
   notes: z.string().optional(),
+  assignedDepartment: z
+    .enum(['', 'sales', 'hajj', 'corporate', 'operations', 'support'])
+    .optional(),
+  priority: z.enum(['normal', 'high', 'urgent']).optional(),
 });
 
 const router = Router();
@@ -36,7 +68,11 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
     const data = req.body;
     const contact = data.customerContact.trim();
     const looksEmail = contact.includes('@');
-    const email = (data.customerEmail || (looksEmail ? contact : `${contact.replace(/\W/g, '') || 'quote'}@quote.local`)).toLowerCase();
+    const email = (
+      data.email ||
+      data.customerEmail ||
+      (looksEmail ? contact : `${contact.replace(/\W/g, '') || 'quote'}@quote.local`)
+    ).toLowerCase();
     const phone = data.customerPhone || (!looksEmail ? contact : '+10000000000');
 
     const customer = await findOrUpsertCustomer({
@@ -52,21 +88,47 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
       lastActivityAt: new Date(),
     });
 
+    const assignedDepartment =
+      data.customerType === 'hajj_mission'
+        ? 'hajj'
+        : data.customerType === 'company' ||
+            data.customerType === 'corporate' ||
+            data.customerType === 'government'
+          ? 'corporate'
+          : 'sales';
+
     const quote = await Quote.create({
       customerId: customer._id,
       conversationId: conversation._id,
       pickup: data.pickup,
       dropoff: data.dropoff,
       date: data.date,
-      vehicleType: data.vehicleType,
+      vehicleType: data.vehicleType || data.busClass || 'standard',
       passengers: data.passengers,
       notes: data.notes,
       customerName: data.customerName,
       customerContact: data.customerContact,
+      language: data.language || '',
+      customerType: data.customerType || data.tripType || '',
+      organization: data.organization || '',
+      email: data.email || data.customerEmail || '',
+      serviceType: data.serviceType || '',
+      originCity: data.originCity || '',
+      destinationCity: data.destinationCity || '',
+      returnDatetime: data.returnDatetime || null,
+      tripType: data.tripType || data.customerType || '',
+      busCount: data.busCount ?? null,
+      busClass: data.busClass || data.vehicleType || '',
+      luggageNotes: data.luggageNotes || '',
+      accessibilityNeeds: data.accessibilityNeeds || '',
+      specialRequirements: data.specialRequirements || '',
+      preferredContactChannel: data.preferredContactChannel || '',
+      consent: Boolean(data.consent),
+      priority: data.priority || 'normal',
+      assignedDepartment,
       status: 'new',
     });
 
-    // Fire-and-forget push (no-op if VAPID not configured / Phase 5)
     notifyAdmins({
       title: 'New quote',
       body: `${data.customerName} · ${data.pickup} → ${data.dropoff}`,
@@ -77,7 +139,6 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
       },
     }).catch(() => {});
 
-    // Notify socket layer if registered
     const { emitToAdminQueue } = await import('../sockets/chat.js').catch(() => ({
       emitToAdminQueue: null,
     }));
@@ -94,8 +155,11 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const filter = {};
-    if (req.query.status) {
-      filter.status = req.query.status;
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.serviceType) filter.serviceType = String(req.query.serviceType);
+    if (req.query.customerType) filter.customerType = String(req.query.customerType);
+    if (req.query.assignedDepartment) {
+      filter.assignedDepartment = String(req.query.assignedDepartment);
     }
     const quotes = await Quote.find(filter).sort({ createdAt: -1 }).lean();
     res.json({ quotes });
@@ -114,10 +178,13 @@ router.patch('/:id', requireAuth, validateBody(patchQuoteSchema), async (req, re
     if (req.body.status !== undefined) quote.status = req.body.status;
     if (req.body.quotedPrice !== undefined) quote.quotedPrice = req.body.quotedPrice;
     if (req.body.notes !== undefined) quote.notes = req.body.notes;
+    if (req.body.assignedDepartment !== undefined) {
+      quote.assignedDepartment = req.body.assignedDepartment;
+    }
+    if (req.body.priority !== undefined) quote.priority = req.body.priority;
 
     await quote.save();
 
-    // Phase 6: when marked quoted with a price, post into conversation
     if (quote.status === 'quoted' && quote.quotedPrice != null && quote.conversationId) {
       await Message.create({
         conversationId: quote.conversationId,

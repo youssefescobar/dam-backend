@@ -9,6 +9,7 @@ import kbRouter from './routes/kb.js';
 import chatRouter from './routes/chat.js';
 import pushRouter from './routes/push.js';
 import conversationsRouter from './routes/conversations.js';
+import settingsRouter from './routes/settings.js';
 
 /**
  * CORS_ORIGIN may be `*`, a single origin, or a comma-separated list.
@@ -58,6 +59,7 @@ export function createApp(options = {}) {
   app.use('/chat', chatRouter);
   app.use('/push', pushRouter);
   app.use('/conversations', conversationsRouter);
+  app.use('/settings', settingsRouter);
 
   app.use(errorHandler);
 
