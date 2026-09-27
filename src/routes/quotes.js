@@ -8,6 +8,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errorHandler.js';
 import { notifyAdmins } from '../services/push.js';
+import { getCompanySettings } from '../models/Settings.js';
 
 const createQuoteSchema = z.object({
   customerName: z.string().min(1, 'customerName is required'),
@@ -46,6 +47,13 @@ const createQuoteSchema = z.object({
   luggageNotes: z.string().optional().default(''),
   accessibilityNeeds: z.string().optional().default(''),
   specialRequirements: z.string().optional().default(''),
+  stops: z.string().optional().default(''),
+  departureTime: z.string().optional().default(''),
+  waitingHours: z.coerce.number().min(0).optional().nullable(),
+  needsSupervisors: z.boolean().optional().default(false),
+  needsTracking: z.boolean().optional().default(false),
+  needsBranding: z.boolean().optional().default(false),
+  needsAirportReception: z.boolean().optional().default(false),
   preferredContactChannel: z.enum(['phone', 'whatsapp', 'email', 'web']).optional(),
   consent: z.boolean().optional().default(false),
   priority: z.enum(['normal', 'high', 'urgent']).optional().default('normal'),
@@ -122,6 +130,13 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
       luggageNotes: data.luggageNotes || '',
       accessibilityNeeds: data.accessibilityNeeds || '',
       specialRequirements: data.specialRequirements || '',
+      stops: data.stops || '',
+      departureTime: data.departureTime || '',
+      waitingHours: data.waitingHours ?? null,
+      needsSupervisors: Boolean(data.needsSupervisors),
+      needsTracking: Boolean(data.needsTracking),
+      needsBranding: Boolean(data.needsBranding),
+      needsAirportReception: Boolean(data.needsAirportReception),
       preferredContactChannel: data.preferredContactChannel || '',
       consent: Boolean(data.consent),
       priority: data.priority || 'normal',
@@ -129,12 +144,25 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
       status: 'new',
     });
 
+    const leadId = `DM-${String(quote._id).slice(-8).toUpperCase()}`;
+    quote.leadId = leadId;
+    await quote.save();
+
+    let quoteSlaHours = 24;
+    try {
+      const settings = await getCompanySettings();
+      if (settings?.quoteSlaHours) quoteSlaHours = settings.quoteSlaHours;
+    } catch {
+      /* optional */
+    }
+
     notifyAdmins({
       title: 'New quote',
-      body: `${data.customerName} · ${data.pickup} → ${data.dropoff}`,
+      body: `${leadId} · ${data.customerName} · ${data.pickup} → ${data.dropoff}`,
       data: {
         type: 'quote',
         quoteId: quote._id.toString(),
+        leadId,
         url: '/quotes',
       },
     }).catch(() => {});
@@ -146,7 +174,12 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
       emitToAdminQueue('quote:new', { quote });
     }
 
-    res.status(201).json({ quote, conversationId: conversation._id });
+    res.status(201).json({
+      quote,
+      conversationId: conversation._id,
+      leadId,
+      quoteSlaHours,
+    });
   } catch (err) {
     next(err);
   }
