@@ -55,6 +55,12 @@ export function initChatSockets(serverIo) {
 
     socket.on('chat:message', async (payload = {}, ack) => {
       try {
+        // Join first so the room broadcasts from handleChatMessage reach this socket
+        // (previously the reply was emitted twice: once to the room, once directly).
+        if (payload.conversationId) {
+          await socket.join(`conversation:${payload.conversationId}`);
+        }
+
         const result = await handleChatMessage({
           text: payload.text,
           conversationId: payload.conversationId,
@@ -63,6 +69,7 @@ export function initChatSockets(serverIo) {
           customerPhone: payload.customerPhone,
           customerContact: payload.customerContact,
           choiceId: payload.choiceId,
+          lang: payload.lang,
         });
 
         const response = {
@@ -70,27 +77,14 @@ export function initChatSockets(serverIo) {
           status: result.conversation.status,
           escalated: result.escalated,
           answer: result.answer,
+          messageId: result.messageId || null,
           reason: result.reason || null,
           systemMessage: result.systemMessage || null,
           options: result.options || [],
         };
 
-        socket.join(`conversation:${response.conversationId}`);
-
-        if (result.answer) {
-          socket.emit('message:new', {
-            sender: 'ai',
-            text: result.answer,
-            conversationId: response.conversationId,
-          });
-        }
-
-        if (result.escalated) {
-          socket.emit('conversation:escalated', {
-            conversationId: response.conversationId,
-            reason: result.reason,
-          });
-        }
+        // A brand-new conversation (no id in the payload) is only known now.
+        await socket.join(`conversation:${response.conversationId}`);
 
         if (typeof ack === 'function') ack({ ok: true, ...response });
       } catch (err) {
@@ -99,7 +93,6 @@ export function initChatSockets(serverIo) {
         socket.emit('error', { message: err.message });
       }
     });
-
     socket.on('admin:claim', async (payload = {}, ack) => {
       try {
         const admin = requireSocketAdmin(socket);

@@ -66,18 +66,23 @@ async function autoCloseConversation(conversation) {
   const conversationId = conversation._id.toString();
 
   conversation.status = 'closed';
+  conversation.flow = null;
   conversation.lastActivityAt = new Date();
   await conversation.save();
 
   const notice = await Message.create({
     conversationId: conversation._id,
     sender: 'system',
-    text: 'This chat was closed due to inactivity.',
+    text:
+      conversation.language === 'ar'
+        ? 'تم إغلاق هذه المحادثة لعدم النشاط. يمكنك بدء محادثة جديدة في أي وقت.'
+        : 'This chat was closed due to inactivity. You can start a new one anytime.',
   });
 
   emitToConversation(conversationId, 'message:new', {
     sender: 'system',
     text: notice.text,
+    messageId: notice._id.toString(),
     conversationId,
   });
   emitToAdminQueue('conversation:closed', {

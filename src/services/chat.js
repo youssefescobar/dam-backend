@@ -5,59 +5,136 @@ import { loadFaqEntries } from './faqPrompt.js';
 import {
   generateAnswer,
   looksLikeDontKnow,
+  looksLikeEscalate,
   isExplicitHumanRequest,
   isImmediateSafetyEscalation,
-  isGreetingOrChitchat,
+  classifyChitchat,
 } from './llm.js';
 import { notifyAdmins, notifyAdmin } from './push.js';
 import { emitToAdminQueue, emitToConversation } from '../sockets/chat.js';
 import {
+  EXTRA_OPTIONS,
   MAIN_MENU_OPTIONS,
-  getGuidedNode,
+  REPLIES,
+  detectIntent,
+  detectLang,
   findChoiceIdByLabel,
-  resolveGuidedOptions,
+  getGuidedNode,
   greetingWelcome,
-  applySettingsToGuidedAnswer,
+  guidedAnswerText,
+  localizeOptions,
+  menuOptions,
+  normalizeLang,
+  pickText,
+  resolveGuidedOptions,
 } from '../config/guidedChat.js';
 import { getCompanySettings } from '../models/Settings.js';
 import { Report } from '../models/Report.js';
-import { getForm, isFlowCancel, isFlowSkip, makeRefNumber } from '../config/guidedForms.js';
+import {
+  formIntro,
+  getForm,
+  isFlowCancel,
+  isFlowSkip,
+  makeRefNumber,
+  reportDoneText,
+  stepPrompt,
+} from '../config/guidedForms.js';
+
+/** After this many unanswered turns in a row, hand over to a person. */
+const MAX_UNSURE_STREAK = 3;
+/** A stored conversation older than this is not resumed by the website. */
+const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Start (or resume) a chat session after collecting identity.
- * @param {{ name: string, email: string, phone: string }} input
+ * Start a chat session after collecting identity.
+ * @param {{ name: string, email?: string, phone: string, lang?: string }} input
  */
 export async function startChatSession(input) {
   const customer = await findOrUpsertCustomer(input);
   const conversation = await Conversation.create({
     customerId: customer._id,
     status: 'ai_handling',
+    language: normalizeLang(input.lang),
     lastActivityAt: new Date(),
   });
   return { customer: customerPublic(customer), conversation };
 }
 
+const digitsOf = (s) => String(s || '').replace(/\D/g, '');
+
 /**
- * Process a customer chat message: guided menu → FAQ-in-prompt LLM → escalate if needed.
+ * Messages + state for resuming a chat after a page reload.
+ * The caller must prove it knows the customer's phone number.
+ */
+export async function getConversationForResume(conversationId, phone) {
+  if (!conversationId || !/^[a-f0-9]{24}$/i.test(String(conversationId))) return null;
+  const conversation = await Conversation.findById(conversationId);
+  if (!conversation) return null;
+
+  const customer = await Customer.findById(conversation.customerId).lean();
+  const given = digitsOf(phone);
+  const known = digitsOf(customer?.phone);
+  if (!given || !known || given.slice(-9) !== known.slice(-9)) return null;
+
+  const stale = Date.now() - new Date(conversation.lastActivityAt).getTime() > RESUME_WINDOW_MS;
+  if (conversation.status === 'closed' || stale) return { resumable: false };
+
+  const rows = await Message.find({ conversationId: conversation._id })
+    .sort({ createdAt: -1 })
+    .limit(60)
+    .lean();
+  const lang = normalizeLang(conversation.language);
+  const flowActive = Boolean(conversation.flow?.type);
+  const human = conversation.status === 'needs_human' || conversation.status === 'claimed';
+
+  return {
+    resumable: true,
+    conversationId: String(conversation._id),
+    status: conversation.status,
+    language: lang,
+    messages: rows.reverse().map((m) => ({
+      id: String(m._id),
+      sender: m.sender,
+      text: m.text,
+      createdAt: m.createdAt,
+    })),
+    options: human
+      ? []
+      : flowActive
+        ? localizeOptions([EXTRA_OPTIONS.cancel_flow], lang)
+        : menuOptions(lang),
+  };
+}
+
+function resolveChoice(input) {
+  const raw = input.choiceId || findChoiceIdByLabel(input.text) || null;
+  if (!raw) return null;
+  if (getGuidedNode(raw)) return raw;
+  // `open_quote` is a link button, but older clients may still post it as a choice.
+  if (raw === 'open_quote') return 'quote';
+  // Any other unknown id with no typed text → show the menu instead of failing.
+  return String(input.text || '').trim() ? null : 'main_menu';
+}
+
+/**
+ * Process a customer chat message:
+ * safety/human triggers → active form → guided menu → keyword intents →
+ * greetings → FAQ retrieval + LLM → graceful fallback (offer a person).
  * @param {{
  *   conversationId?: string,
  *   customerName?: string,
  *   customerEmail?: string,
  *   customerPhone?: string,
- *   customerContact?: string,
  *   text?: string,
  *   choiceId?: string,
+ *   lang?: string,
  * }} input
  */
 export async function handleChatMessage(input) {
-  const choiceId =
-    input.choiceId || findChoiceIdByLabel(input.text) || null;
-  const text =
-    (input.text && String(input.text).trim()) ||
-    MAIN_MENU_OPTIONS.find((o) => o.id === choiceId)?.label ||
-    '';
+  const typed = (input.text && String(input.text).trim()) || '';
+  let choiceId = resolveChoice(input);
 
-  if (!text && !choiceId) {
+  if (!typed && !choiceId) {
     const err = new Error('text or choiceId is required');
     err.status = 400;
     throw err;
@@ -68,12 +145,24 @@ export async function handleChatMessage(input) {
     conversation.status = 'ai_handling';
     conversation.assignedAdminId = null;
     conversation.flow = null;
+    conversation.unsureStreak = 0;
     await conversation.save();
   }
 
-  const messageText = text || choiceId;
+  // Language: what they type wins, then the site locale, then what we stored.
+  // (Not mid-form: a reference like "BK-4821" must not flip the language.)
+  let lang = normalizeLang(input.lang || conversation.language);
+  const typedLang = detectLang(typed);
+  if (typedLang && !conversation.flow?.type) lang = typedLang;
+  if (conversation.language !== lang) conversation.language = lang;
 
-  await Message.create({
+  const choiceLabel = MAIN_MENU_OPTIONS.find((o) => o.id === choiceId);
+  const messageText =
+    typed ||
+    (choiceLabel ? (lang === 'ar' ? choiceLabel.labelAr : choiceLabel.label) : '') ||
+    choiceId;
+
+  const saved = await Message.create({
     conversationId: conversation._id,
     sender: 'customer',
     text: messageText,
@@ -84,10 +173,11 @@ export async function handleChatMessage(input) {
   emitToConversation(conversation._id.toString(), 'message:new', {
     sender: 'customer',
     text: messageText,
+    messageId: saved._id.toString(),
     conversationId: conversation._id.toString(),
   });
 
-  // Already with a human — don't run AI; alert assigned agent if claimed
+  // Already with a human — don't run AI; alert assigned agent if claimed.
   if (conversation.status === 'claimed' || conversation.status === 'needs_human') {
     if (conversation.status === 'claimed' && conversation.assignedAdminId) {
       await alertAssignedAdmin(conversation, messageText);
@@ -97,16 +187,18 @@ export async function handleChatMessage(input) {
       escalated: conversation.status === 'needs_human',
       answer: null,
       reason: conversation.status === 'claimed' ? 'claimed' : 'already_escalated',
+      // Reassure the customer who is still waiting; a claimed chat has a human replying already.
+      systemMessage: conversation.status === 'needs_human' ? pickText(REPLIES.humanBusy, lang) : null,
       options: [],
     };
   }
 
-  if (choiceId === 'human' || isExplicitHumanRequest(text)) {
-    return escalate(conversation, 'explicit_human_request');
+  if (choiceId === 'human' || isExplicitHumanRequest(typed)) {
+    return escalate(conversation, 'explicit_human_request', undefined, lang);
   }
 
-  if (isImmediateSafetyEscalation(text)) {
-    return escalate(conversation, 'safety_critical');
+  if (isImmediateSafetyEscalation(typed)) {
+    return escalate(conversation, 'safety_critical', undefined, lang);
   }
 
   let settings = null;
@@ -121,39 +213,53 @@ export async function handleChatMessage(input) {
     if (choiceId) {
       conversation.flow = null;
       await conversation.save();
-    } else if (isFlowCancel(text)) {
+    } else if (isFlowCancel(typed)) {
       conversation.flow = null;
       await conversation.save();
-      return replyAi(conversation, 'No problem — I’ve cancelled that. What else can I help with?', {
+      return replyAi(conversation, pickText(getGuidedNode('cancel_flow').answer, lang), {
         reason: 'flow_cancelled',
-        options: MAIN_MENU_OPTIONS,
+        options: menuOptions(lang),
+        lang,
       });
     } else {
-      return continueFlow(conversation, text, settings);
+      return continueFlow(conversation, typed, settings, lang);
     }
+  }
+
+  // Short keyword shortcuts (quote, hours, contact, complaint, lost item) work without the LLM.
+  if (!choiceId && typed) {
+    const intent = detectIntent(typed);
+    if (intent) choiceId = intent;
   }
 
   const guided = choiceId ? getGuidedNode(choiceId) : null;
   if (guided) {
     if (guided.escalate) {
-      return escalate(conversation, 'explicit_human_request');
+      return escalate(conversation, 'explicit_human_request', undefined, lang);
     }
     if (guided.startFlow) {
-      return startFlow(conversation, guided.startFlow);
+      return startFlow(conversation, guided.startFlow, lang);
     }
-    const answer =
-      applySettingsToGuidedAnswer(choiceId, settings) || guided.answer || '';
-    const options = resolveGuidedOptions(guided.options);
-    return replyAi(conversation, answer, {
+    conversation.unsureStreak = 0;
+    return replyAi(conversation, guidedAnswerText(choiceId, settings, lang), {
       reason: guided.freeText ? 'guided_free_text' : 'guided',
-      options,
+      options: resolveGuidedOptions(guided, lang),
+      lang,
     });
   }
 
-  if (isGreetingOrChitchat(text)) {
-    return replyAi(conversation, greetingWelcome(settings), {
-      reason: 'greeting',
-      options: MAIN_MENU_OPTIONS,
+  const chit = classifyChitchat(typed);
+  if (chit) {
+    const reply =
+      chit === 'thanks'
+        ? pickText(REPLIES.thanks, lang)
+        : chit === 'bye'
+          ? pickText(REPLIES.bye, lang)
+          : greetingWelcome(settings, lang);
+    return replyAi(conversation, reply, {
+      reason: chit === 'hello' ? 'greeting' : 'chitchat',
+      options: menuOptions(lang),
+      lang,
     });
   }
 
@@ -161,68 +267,94 @@ export async function handleChatMessage(input) {
   try {
     faqEntries = await loadFaqEntries();
   } catch (err) {
-    return escalate(conversation, 'faq_load_failed', err.message);
+    return escalate(conversation, 'faq_load_failed', err.message, lang);
   }
 
   if (!faqEntries.length) {
-    return replyAi(
-      conversation,
-      "I don’t have that yet. Pick an option below, or ask to talk to a human.",
-      { reason: 'empty_kb', options: MAIN_MENU_OPTIONS },
-    );
+    return replyAi(conversation, pickText(REPLIES.emptyKb, lang), {
+      reason: 'empty_kb',
+      options: menuOptions(lang),
+      lang,
+    });
   }
 
   let llmResult;
   try {
     llmResult = await generateAnswer({
-      question: text,
+      question: typed,
       faqEntries,
+      history: await recentHistory(conversation._id),
+      lang,
     });
   } catch (err) {
-    return replyAi(
-      conversation,
-      "Sorry, I’m a bit stuck right now. Try a menu option, wait a moment, or ask for a human.",
-      {
-        reason: 'llm_failure',
-        options: MAIN_MENU_OPTIONS,
-        detail: err.message,
-      },
-    );
+    return replyAi(conversation, pickText(REPLIES.llmDown, lang), {
+      reason: 'llm_failure',
+      options: menuOptions(lang),
+      detail: err.message,
+      lang,
+    });
+  }
+
+  // The model flagged something staff must handle (safety row, fraud, "manager", …).
+  if (looksLikeEscalate(llmResult.answer)) {
+    return escalate(conversation, 'model_escalate', undefined, lang);
   }
 
   if (looksLikeDontKnow(llmResult.answer)) {
-    return escalate(conversation, 'model_uncertain');
+    conversation.unsureStreak = (conversation.unsureStreak || 0) + 1;
+    if (conversation.unsureStreak >= MAX_UNSURE_STREAK) {
+      return escalate(conversation, 'model_uncertain', undefined, lang);
+    }
+    await conversation.save();
+    return replyAi(conversation, pickText(REPLIES.notSure, lang), {
+      reason: 'model_uncertain',
+      options: localizeOptions([EXTRA_OPTIONS.human, EXTRA_OPTIONS.contact, ...MAIN_MENU_OPTIONS], lang),
+      lang,
+    });
   }
 
+  conversation.unsureStreak = 0;
   return replyAi(conversation, llmResult.answer, {
     reason: 'faq',
-    options: MAIN_MENU_OPTIONS,
+    options: menuOptions(lang),
     provider: llmResult.provider,
     faqCount: faqEntries.length,
+    lang,
   });
 }
 
-const CANCEL_OPTION = [{ id: 'cancel_flow', label: 'Cancel', labelAr: 'إلغاء' }];
+/** Last few turns for the LLM (customer + Durri + staff; system notices skipped). */
+async function recentHistory(conversationId, limit = 9) {
+  const rows = await Message.find({ conversationId, sender: { $in: ['customer', 'ai', 'admin'] } })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+  return rows.reverse().map((m) => ({ role: m.sender === 'customer' ? 'user' : 'assistant', text: m.text }));
+}
 
-async function startFlow(conversation, type) {
+/* ---------- Guided forms (complaint / lost item) ---------- */
+
+async function startFlow(conversation, type, lang) {
   const form = getForm(type);
   conversation.flow = { type, step: 0, data: {} };
   await conversation.save();
-  return replyAi(conversation, `${form.intro}\n\n${form.steps[0].prompt}`, {
+  return replyAi(conversation, `${formIntro(form, lang)}\n\n${stepPrompt(form.steps[0], lang)}`, {
     reason: 'flow_started',
-    options: CANCEL_OPTION,
+    options: localizeOptions([EXTRA_OPTIONS.cancel_flow], lang),
+    lang,
   });
 }
 
-async function continueFlow(conversation, text, settings) {
+async function continueFlow(conversation, text, settings, lang) {
   const form = getForm(conversation.flow.type);
   if (!form) {
     conversation.flow = null;
     await conversation.save();
-    return replyAi(conversation, 'Let’s start again — pick an option below.', {
-      reason: 'flow_reset',
-      options: MAIN_MENU_OPTIONS,
-    });
+    return replyAi(
+      conversation,
+      lang === 'ar' ? 'لنبدأ من جديد، اختر أحد الخيارات أدناه.' : 'Let’s start again — pick an option below.',
+      { reason: 'flow_reset', options: menuOptions(lang), lang },
+    );
   }
 
   const step = form.steps[conversation.flow.step];
@@ -233,9 +365,10 @@ async function continueFlow(conversation, text, settings) {
   if (nextIndex < form.steps.length) {
     conversation.flow = { type: conversation.flow.type, step: nextIndex, data };
     await conversation.save();
-    return replyAi(conversation, form.steps[nextIndex].prompt, {
+    return replyAi(conversation, stepPrompt(form.steps[nextIndex], lang), {
       reason: 'flow_step',
-      options: CANCEL_OPTION,
+      options: localizeOptions([EXTRA_OPTIONS.cancel_flow], lang),
+      lang,
     });
   }
 
@@ -272,26 +405,26 @@ async function continueFlow(conversation, text, settings) {
       type: 'report',
       reportId: report._id.toString(),
       conversationId: conversation._id.toString(),
-      url: `/inbox?c=${conversation._id.toString()}`,
+      url: '/reports',
     },
   }).catch(() => {});
 
-  const photoNote = settings?.whatsappNumber
-    ? ` If you have a photo, send it on WhatsApp (${settings.whatsappNumber}) quoting this number.`
-    : '';
+  emitToAdminQueue('report:new', { report });
 
   return replyAi(
     conversation,
-    `Thank you — your ${form.reportType === 'complaint' ? 'complaint' : 'lost-item report'} is logged as ${refNumber}. Our team will respond within about ${slaHours} hours using the phone number you gave us.${photoNote}`,
-    { reason: 'flow_done', options: MAIN_MENU_OPTIONS },
+    reportDoneText({ form, refNumber, slaHours, whatsapp: settings?.whatsappNumber, lang }),
+    { reason: 'flow_done', options: menuOptions(lang), lang },
   );
 }
+
+/* ---------- Replies ---------- */
 
 function replyDelayMs() {
   if (process.env.NODE_ENV === 'test') return 0;
   const configured = Number(process.env.CHAT_REPLY_DELAY_MS);
   if (Number.isFinite(configured) && configured >= 0) return configured;
-  return 900 + Math.floor(Math.random() * 700);
+  return 350 + Math.floor(Math.random() * 350);
 }
 
 function sleep(ms) {
@@ -301,7 +434,7 @@ function sleep(ms) {
 async function replyAi(conversation, answer, extra = {}) {
   await sleep(replyDelayMs());
 
-  await Message.create({
+  const message = await Message.create({
     conversationId: conversation._id,
     sender: 'ai',
     text: answer,
@@ -312,13 +445,16 @@ async function replyAi(conversation, answer, extra = {}) {
   emitToConversation(conversation._id.toString(), 'message:new', {
     sender: 'ai',
     text: answer,
+    messageId: message._id.toString(),
+    conversationId: conversation._id.toString(),
   });
 
   return {
     conversation,
     escalated: false,
     answer,
-    options: extra.options ?? MAIN_MENU_OPTIONS,
+    messageId: message._id.toString(),
+    options: extra.options ?? menuOptions(extra.lang),
     reason: extra.reason || null,
     provider: extra.provider,
     faqCount: extra.faqCount,
@@ -328,6 +464,11 @@ async function replyAi(conversation, answer, extra = {}) {
 
 async function resolveConversation(input) {
   if (input.conversationId) {
+    if (!/^[a-f0-9]{24}$/i.test(String(input.conversationId))) {
+      const err = new Error('Invalid conversationId');
+      err.status = 400;
+      throw err;
+    }
     const existing = await Conversation.findById(input.conversationId);
     if (existing) return existing;
   }
@@ -338,9 +479,7 @@ async function resolveConversation(input) {
 
   // No guest fallback: name + phone are required (email is optional).
   if (!name || !phone) {
-    const err = new Error(
-      'Start a chat session first (name and phone), or pass conversationId'
-    );
+    const err = new Error('Start a chat session first (name and phone), or pass conversationId');
     err.status = 400;
     throw err;
   }
@@ -349,6 +488,7 @@ async function resolveConversation(input) {
   return Conversation.create({
     customerId: customer._id,
     status: 'ai_handling',
+    language: normalizeLang(input.lang),
     lastActivityAt: new Date(),
   });
 }
@@ -380,17 +520,16 @@ async function alertAssignedAdmin(conversation, text) {
   }).catch(() => {});
 }
 
-async function escalate(conversation, reason, detail) {
+async function escalate(conversation, reason, detail, lang = 'en') {
   conversation.status = 'needs_human';
   conversation.assignedAdminId = null;
   conversation.flow = null;
   conversation.lastActivityAt = new Date();
   await conversation.save();
 
-  const notice =
-    "I'm connecting you with a teammate now. Someone will be with you shortly.";
+  const notice = pickText(reason === 'safety_critical' ? REPLIES.escalatedSafety : REPLIES.escalated, lang);
 
-  await Message.create({
+  const sysMessage = await Message.create({
     conversationId: conversation._id,
     sender: 'system',
     text: notice,
@@ -399,6 +538,7 @@ async function escalate(conversation, reason, detail) {
   emitToConversation(conversation._id.toString(), 'message:new', {
     sender: 'system',
     text: notice,
+    messageId: sysMessage._id.toString(),
     conversationId: conversation._id.toString(),
   });
 
@@ -416,9 +556,9 @@ async function escalate(conversation, reason, detail) {
   emitToConversation(conversation._id.toString(), 'conversation:escalated', payload);
 
   notifyAdmins({
-    title: 'Chat waiting',
+    title: reason === 'safety_critical' ? 'URGENT: safety issue in chat' : 'Chat waiting',
     body: customerName
-      ? `${customerName} asked to speak with someone.`
+      ? `${customerName} ${reason === 'safety_critical' ? 'reported a safety issue.' : 'asked to speak with someone.'}`
       : 'A customer is waiting for a reply in Inbox.',
     data: {
       type: 'escalation',
@@ -434,6 +574,7 @@ async function escalate(conversation, reason, detail) {
     reason,
     detail: detail || null,
     systemMessage: notice,
+    messageId: sysMessage._id.toString(),
     options: [],
   };
 }

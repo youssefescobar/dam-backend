@@ -91,9 +91,14 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     const client = ioc(baseUrl, { transports: ['websocket'], forceNew: true });
     await waitFor(client, 'connect');
 
-    const replyPromise = waitFor(client, 'message:new');
+    // The customer's own message is echoed to the room too; wait for Durri's reply.
+    const replyPromise = new Promise((resolve) => {
+      client.on('message:new', (p) => {
+        if (p.sender === 'ai') resolve(p);
+      });
+    });
     client.emit('chat:message', {
-      text: 'What are your hours?',
+      text: 'Do you operate on Friday evenings?',
       conversationId: conversation._id.toString(),
     });
 

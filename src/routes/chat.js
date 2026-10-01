@@ -2,24 +2,28 @@ import { z } from 'zod';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { validateBody } from '../middleware/validate.js';
-import { handleChatMessage, startChatSession } from '../services/chat.js';
-import { getWelcomePayload, MAIN_MENU_OPTIONS } from '../config/guidedChat.js';
+import { getConversationForResume, handleChatMessage, startChatSession } from '../services/chat.js';
+import { getWelcomePayload, menuOptions, normalizeLang } from '../config/guidedChat.js';
 import { getCompanySettings } from '../models/Settings.js';
 
+const langSchema = z.enum(['en', 'ar']).optional();
+
 const sessionSchema = z.object({
-  name: z.string().min(1, 'name is required'),
+  name: z.string().trim().min(1, 'name is required').max(120),
   email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().min(5, 'phone is required'),
+  phone: z.string().trim().min(5, 'phone is required').max(40),
+  lang: langSchema,
 });
 
 const messageSchema = z
   .object({
-    text: z.string().optional(),
-    choiceId: z.string().min(1).optional(),
+    text: z.string().max(2000).optional(),
+    choiceId: z.string().min(1).max(60).optional(),
     conversationId: z.string().optional(),
     customerName: z.string().optional(),
     customerEmail: z.string().email().optional(),
     customerPhone: z.string().optional(),
+    lang: langSchema,
     /** @deprecated use session + conversationId */
     customerContact: z.string().optional(),
   })
@@ -37,8 +41,10 @@ const chatLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
 });
 
+const langFrom = (req) => normalizeLang(req.query.lang);
+
 /** Initial guided menu (no conversation yet). */
-router.get('/guided', async (_req, res, next) => {
+router.get('/guided', async (req, res, next) => {
   try {
     let settings = null;
     try {
@@ -46,7 +52,7 @@ router.get('/guided', async (_req, res, next) => {
     } catch {
       /* optional */
     }
-    const welcome = getWelcomePayload(settings);
+    const welcome = getWelcomePayload(settings, langFrom(req));
     res.json({
       answer: welcome.answer,
       options: welcome.options,
@@ -57,8 +63,8 @@ router.get('/guided', async (_req, res, next) => {
   }
 });
 
-router.get('/options', (_req, res) => {
-  res.json({ options: MAIN_MENU_OPTIONS });
+router.get('/options', (req, res) => {
+  res.json({ options: menuOptions(langFrom(req)) });
 });
 
 /** Collect identity and open a conversation. */
@@ -75,6 +81,20 @@ router.post('/session', chatLimiter, validateBody(sessionSchema), async (req, re
   }
 });
 
+/** Restore an open chat after a page reload (requires the customer's phone). */
+router.get('/history', chatLimiter, async (req, res, next) => {
+  try {
+    const result = await getConversationForResume(
+      String(req.query.conversationId || ''),
+      String(req.query.phone || ''),
+    );
+    if (!result) return res.status(404).json({ error: 'Conversation not found' });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/message', chatLimiter, validateBody(messageSchema), async (req, res, next) => {
   try {
     const result = await handleChatMessage(req.body);
@@ -83,6 +103,7 @@ router.post('/message', chatLimiter, validateBody(messageSchema), async (req, re
       status: result.conversation.status,
       escalated: result.escalated,
       answer: result.answer,
+      messageId: result.messageId || null,
       reason: result.reason || null,
       systemMessage: result.systemMessage || null,
       options: result.options || [],

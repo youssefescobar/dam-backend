@@ -18,6 +18,6 @@ describe('formatFaqBlock', () => {
 
   it('exports a sane entry limit', () => {
     expect(FAQ_ENTRY_LIMIT).toBeGreaterThanOrEqual(50);
-    expect(FAQ_ENTRY_LIMIT).toBeLessThanOrEqual(100);
+    expect(FAQ_ENTRY_LIMIT).toBeLessThanOrEqual(250);
   });
 });

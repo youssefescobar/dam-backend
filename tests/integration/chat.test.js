@@ -4,6 +4,7 @@ import { createApp } from '../../src/app.js';
 import { startTestDb, stopTestDb, clearDb } from '../helpers/db.js';
 import { KnowledgeBaseEntry } from '../../src/models/KnowledgeBaseEntry.js';
 import { Conversation } from '../../src/models/Conversation.js';
+import { Settings } from '../../src/models/Settings.js';
 import { setLlmOverride, resetLlmOverride } from '../../src/services/llm.js';
 
 async function openSession(app, overrides = {}) {
@@ -83,7 +84,7 @@ describe('POST /chat/session & /chat/message', () => {
     expect(res.body.reason).toBe('faq');
   });
 
-  it('escalates when the model cannot answer from the FAQ', async () => {
+  it('does not escalate on the first unanswerable question — it offers a person', async () => {
     await KnowledgeBaseEntry.create({
       title: 'Airport fares',
       content: 'Airport transfers start at $50.',
@@ -98,12 +99,27 @@ describe('POST /chat/session & /chat/message', () => {
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.escalated).toBe(true);
-    expect(res.body.answer).toBeNull();
-    expect(res.body.status).toBe('needs_human');
+    expect(res.body.escalated).toBe(false);
+    expect(res.body.status).toBe('ai_handling');
     expect(res.body.reason).toBe('model_uncertain');
+    expect(res.body.answer).toMatch(/connect you|team|topic/i);
+    expect(res.body.options.some((o) => o.id === 'human')).toBe(true);
   });
 
+  it('hands over to a person after three unanswered turns in a row', async () => {
+    await KnowledgeBaseEntry.create({ title: 'Airport fares', content: 'From $50.' });
+    setLlmOverride(async () => "I don't know");
+
+    const session = await openSession(app);
+    const ask = (text) =>
+      request(app).post('/chat/message').send({ text, conversationId: session.conversationId });
+
+    expect((await ask('Question one about Mars')).body.escalated).toBe(false);
+    expect((await ask('Question two about Venus')).body.escalated).toBe(false);
+    const third = await ask('Question three about Jupiter');
+    expect(third.body.escalated).toBe(true);
+    expect(third.body.status).toBe('needs_human');
+  });
   it('soft-fails when knowledge base is empty without locking', async () => {
     setLlmOverride(async () => 'nope');
 
@@ -197,5 +213,146 @@ describe('POST /chat/session & /chat/message', () => {
 
     const conv = await Conversation.findById(res.body.conversationId);
     expect(conv.status).toBe('ai_handling');
+  });
+
+  it('answers the guided menu in Arabic when the site locale is Arabic', async () => {
+    setLlmOverride(async () => 'should not be called');
+    const session = await openSession(app, { lang: 'ar' });
+
+    const welcome = await request(app).get('/chat/guided?lang=ar');
+    expect(welcome.body.answer).toMatch(/دُرّي/);
+    expect(welcome.body.options[0].label).toMatch(/[\u0600-\u06FF]/);
+
+    const res = await request(app).post('/chat/message').send({
+      choiceId: 'airport',
+      conversationId: session.conversationId,
+      lang: 'ar',
+    });
+    expect(res.body.answer).toMatch(/[\u0600-\u06FF]/);
+    expect(res.body.options.every((o) => /[\u0600-\u06FF]/.test(o.label))).toBe(true);
+    const quoteBtn = res.body.options.find((o) => o.id === 'open_quote');
+    expect(quoteBtn?.href).toBe('/quote');
+  });
+
+  it('switches to Arabic when the customer types Arabic, and passes history + lang to the model', async () => {
+    await KnowledgeBaseEntry.create({ title: 'ساعات العمل', content: 'من الأحد إلى الخميس' });
+    let seen;
+    setLlmOverride(async (args) => {
+      seen = args;
+      return 'نعم، نعمل من الأحد إلى الخميس.';
+    });
+    const session = await openSession(app);
+    await request(app).post('/chat/message').send({
+      text: 'هل تعملون يوم الجمعة؟',
+      conversationId: session.conversationId,
+    });
+    expect(seen.lang).toBe('ar');
+    expect(seen.history.length).toBeGreaterThan(0);
+    expect(seen.history[seen.history.length - 1].role).toBe('user');
+    const conv = await Conversation.findById(session.conversationId);
+    expect(conv.language).toBe('ar');
+  });
+
+  it('routes explicit quote / complaint / lost-item requests without the LLM', async () => {
+    setLlmOverride(async () => 'should not be called');
+    const session = await openSession(app);
+    const say = (text) =>
+      request(app).post('/chat/message').send({ text, conversationId: session.conversationId });
+
+    const quote = await say('I want to get a quote');
+    expect(quote.body.reason).toBe('guided');
+    expect(quote.body.options.some((o) => o.id === 'open_quote')).toBe(true);
+
+    const lost = await say('I left my bag on the bus');
+    expect(lost.body.reason).toBe('flow_started');
+  });
+
+  it('understands Arabic human requests and chit-chat', async () => {
+    setLlmOverride(async () => 'should not be called');
+    const session = await openSession(app);
+    const thanks = await request(app)
+      .post('/chat/message')
+      .send({ text: 'شكرا', conversationId: session.conversationId });
+    expect(thanks.body.reason).toBe('chitchat');
+    expect(thanks.body.answer).toMatch(/العفو/);
+
+    const human = await request(app)
+      .post('/chat/message')
+      .send({ text: 'أبغى أكلم موظف', conversationId: session.conversationId });
+    expect(human.body.escalated).toBe(true);
+    expect(human.body.systemMessage).toMatch(/[\u0600-\u06FF]/);
+  });
+
+  it('restores a chat after reload only for the right phone, and returns message ids', async () => {
+    setLlmOverride(async () => 'should not be called');
+    const phone = '+966555000222';
+    const session = await openSession(app, { phone });
+    const reply = await request(app)
+      .post('/chat/message')
+      .send({ choiceId: 'hours', conversationId: session.conversationId });
+    expect(reply.body.messageId).toMatch(/^[a-f0-9]{24}$/);
+
+    const ok = await request(app)
+      .get('/chat/history')
+      .query({ conversationId: session.conversationId, phone });
+    expect(ok.status).toBe(200);
+    expect(ok.body.resumable).toBe(true);
+    expect(ok.body.messages.map((m) => m.sender)).toEqual(['customer', 'ai']);
+    expect(ok.body.options.length).toBeGreaterThan(3);
+
+    const wrong = await request(app)
+      .get('/chat/history')
+      .query({ conversationId: session.conversationId, phone: '+966500000000' });
+    expect(wrong.status).toBe(404);
+
+    await Conversation.findByIdAndUpdate(session.conversationId, { status: 'closed' });
+    const closed = await request(app)
+      .get('/chat/history')
+      .query({ conversationId: session.conversationId, phone });
+    expect(closed.body.resumable).toBe(false);
+  });
+
+  it('hands over immediately when the model answers ESCALATE', async () => {
+    await KnowledgeBaseEntry.create({ title: 'Accident', content: 'Escalate immediately', escalate: true });
+    setLlmOverride(async () => 'ESCALATE');
+    const session = await openSession(app);
+    const res = await request(app).post('/chat/message').send({
+      text: 'The driver hit a parked car near the gate',
+      conversationId: session.conversationId,
+    });
+    expect(res.body.escalated).toBe(true);
+    expect(res.body.reason).toBe('model_escalate');
+    expect(res.body.status).toBe('needs_human');
+  });
+
+  it('never fails on a link-button or unknown choice id', async () => {
+    setLlmOverride(async () => 'should not be called');
+    const session = await openSession(app);
+    const quote = await request(app)
+      .post('/chat/message')
+      .send({ choiceId: 'open_quote', conversationId: session.conversationId });
+    expect(quote.status).toBe(200);
+    expect(quote.body.reason).toBe('guided');
+    expect(quote.body.answer).toMatch(/quote/i);
+
+    const unknown = await request(app)
+      .post('/chat/message')
+      .send({ choiceId: 'does_not_exist', conversationId: session.conversationId });
+    expect(unknown.status).toBe(200);
+    expect(unknown.body.options.length).toBeGreaterThan(3);
+  });
+
+  it('ignores the old stock greeting stored in settings so Durri introduces itself', async () => {
+    await Settings.create({
+      _id: 'company',
+      botGreetingEn:
+        'Welcome to Durrah Al-Munawwara Transport. How can I help? Choose booking or quote, trip follow-up, Hajj & Umrah, corporate transport, international, complaint or lost items, or talk to an agent.',
+      botGreetingAr: 'أهلاً بك في درة المنورة للنقل. كيف أستطيع مساعدتك؟ يمكنك اختيار حجز أو عرض سعر، متابعة رحلة، الحج والعمرة، نقل الشركات، النقل الدولي، شكوى أو مفقودات، أو التحدث مع موظف.',
+    });
+    expect((await request(app).get('/chat/guided?lang=en')).body.answer).toMatch(/Durri/);
+    expect((await request(app).get('/chat/guided?lang=ar')).body.answer).toMatch(/دُرّي/);
+
+    await Settings.updateOne({ _id: 'company' }, { botGreetingEn: 'Custom hello from the team.' });
+    expect((await request(app).get('/chat/guided?lang=en')).body.answer).toBe('Custom hello from the team.');
   });
 });
