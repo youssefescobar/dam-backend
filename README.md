@@ -15,6 +15,7 @@ Transportation company API: FAQ-in-prompt Q&A, quote requests, Socket.io human e
 | Auth | JWT + bcrypt |
 
 > **Durri, the AI chatbot** — full explanation of the flow, features and configuration: [`docs/AI-CHATBOT.md`](docs/AI-CHATBOT.md).
+> **Open work and what is waiting on Abdullah:** [`TODO.md`](TODO.md).
 
 ## Setup
 
