@@ -111,7 +111,7 @@ flowchart TD
   C --> D[save + broadcast the customer message]
   D --> E{status claimed / needs_human?}
   E -- yes --> E1[no AI. Claimed: ping the agent. Waiting: reassure customer]
-  E -- no --> F{"Talk to human" button or typed request?}
+  E -- no --> F{Talk to human button or typed request?}
   F -- yes --> H[ESCALATE: explicit_human_request]
   F -- no --> G{safety / fraud / emergency words?}
   G -- yes --> H2[ESCALATE: safety_critical]
