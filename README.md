@@ -14,6 +14,8 @@ Transportation company API: FAQ-in-prompt Q&A, quote requests, Socket.io human e
 | Push | Web Push (VAPID) |
 | Auth | JWT + bcrypt |
 
+> **Durri, the AI chatbot** — full explanation of the flow, features and configuration: [`docs/AI-CHATBOT.md`](docs/AI-CHATBOT.md).
+
 ## Setup
 
 ```bash
