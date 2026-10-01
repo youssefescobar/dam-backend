@@ -32,6 +32,18 @@ const conversationSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    /** Active guided form (complaint / lost & found), or null. */
+    flow: {
+      type: new mongoose.Schema(
+        {
+          type: { type: String, default: '' },
+          step: { type: Number, default: 0 },
+          data: { type: mongoose.Schema.Types.Mixed, default: {} },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
   },
   { timestamps: true }
 );

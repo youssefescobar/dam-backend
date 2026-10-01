@@ -20,6 +20,8 @@ import {
   applySettingsToGuidedAnswer,
 } from '../config/guidedChat.js';
 import { getCompanySettings } from '../models/Settings.js';
+import { Report } from '../models/Report.js';
+import { getForm, isFlowCancel, isFlowSkip, makeRefNumber } from '../config/guidedForms.js';
 
 /**
  * Start (or resume) a chat session after collecting identity.
@@ -65,6 +67,7 @@ export async function handleChatMessage(input) {
   if (conversation.status === 'closed') {
     conversation.status = 'ai_handling';
     conversation.assignedAdminId = null;
+    conversation.flow = null;
     await conversation.save();
   }
 
@@ -113,10 +116,30 @@ export async function handleChatMessage(input) {
     /* optional */
   }
 
+  // Mid-form: a menu click abandons the form; typed text answers the current step.
+  if (conversation.flow?.type) {
+    if (choiceId) {
+      conversation.flow = null;
+      await conversation.save();
+    } else if (isFlowCancel(text)) {
+      conversation.flow = null;
+      await conversation.save();
+      return replyAi(conversation, 'No problem — I’ve cancelled that. What else can I help with?', {
+        reason: 'flow_cancelled',
+        options: MAIN_MENU_OPTIONS,
+      });
+    } else {
+      return continueFlow(conversation, text, settings);
+    }
+  }
+
   const guided = choiceId ? getGuidedNode(choiceId) : null;
   if (guided) {
     if (guided.escalate) {
       return escalate(conversation, 'explicit_human_request');
+    }
+    if (guided.startFlow) {
+      return startFlow(conversation, guided.startFlow);
     }
     const answer =
       applySettingsToGuidedAnswer(choiceId, settings) || guided.answer || '';
@@ -179,6 +202,91 @@ export async function handleChatMessage(input) {
   });
 }
 
+const CANCEL_OPTION = [{ id: 'cancel_flow', label: 'Cancel', labelAr: 'إلغاء' }];
+
+async function startFlow(conversation, type) {
+  const form = getForm(type);
+  conversation.flow = { type, step: 0, data: {} };
+  await conversation.save();
+  return replyAi(conversation, `${form.intro}\n\n${form.steps[0].prompt}`, {
+    reason: 'flow_started',
+    options: CANCEL_OPTION,
+  });
+}
+
+async function continueFlow(conversation, text, settings) {
+  const form = getForm(conversation.flow.type);
+  if (!form) {
+    conversation.flow = null;
+    await conversation.save();
+    return replyAi(conversation, 'Let’s start again — pick an option below.', {
+      reason: 'flow_reset',
+      options: MAIN_MENU_OPTIONS,
+    });
+  }
+
+  const step = form.steps[conversation.flow.step];
+  const data = { ...(conversation.flow.data || {}) };
+  data[step.key] = isFlowSkip(text) ? '' : String(text).trim().slice(0, 1000);
+  const nextIndex = conversation.flow.step + 1;
+
+  if (nextIndex < form.steps.length) {
+    conversation.flow = { type: conversation.flow.type, step: nextIndex, data };
+    await conversation.save();
+    return replyAi(conversation, form.steps[nextIndex].prompt, {
+      reason: 'flow_step',
+      options: CANCEL_OPTION,
+    });
+  }
+
+  const customer = await Customer.findById(conversation.customerId).lean();
+  const slaHours = settings?.complaintSlaHours || 48;
+
+  let refNumber = makeRefNumber(form.refPrefix);
+  for (let i = 0; i < 3 && (await Report.exists({ refNumber })); i += 1) {
+    refNumber = makeRefNumber(form.refPrefix);
+  }
+
+  const report = await Report.create({
+    type: form.reportType,
+    refNumber,
+    customerId: conversation.customerId,
+    conversationId: conversation._id,
+    name: customer?.name || '',
+    phone: customer?.phone || '',
+    tripNumber: data.tripNumber || '',
+    incidentDate: data.incidentDate || '',
+    incidentTime: data.incidentTime || '',
+    seat: data.seat || '',
+    description: data.description || '',
+    slaHours,
+  });
+
+  conversation.flow = null;
+  await conversation.save();
+
+  notifyAdmins({
+    title: form.reportType === 'complaint' ? 'New complaint' : 'New lost item report',
+    body: `${refNumber} · ${customer?.name || 'Customer'}${data.tripNumber ? ` · trip ${data.tripNumber}` : ''}`,
+    data: {
+      type: 'report',
+      reportId: report._id.toString(),
+      conversationId: conversation._id.toString(),
+      url: `/inbox?c=${conversation._id.toString()}`,
+    },
+  }).catch(() => {});
+
+  const photoNote = settings?.whatsappNumber
+    ? ` If you have a photo, send it on WhatsApp (${settings.whatsappNumber}) quoting this number.`
+    : '';
+
+  return replyAi(
+    conversation,
+    `Thank you — your ${form.reportType === 'complaint' ? 'complaint' : 'lost-item report'} is logged as ${refNumber}. Our team will respond within about ${slaHours} hours using the phone number you gave us.${photoNote}`,
+    { reason: 'flow_done', options: MAIN_MENU_OPTIONS },
+  );
+}
+
 function replyDelayMs() {
   if (process.env.NODE_ENV === 'test') return 0;
   const configured = Number(process.env.CHAT_REPLY_DELAY_MS);
@@ -228,11 +336,10 @@ async function resolveConversation(input) {
   const email = String(input.customerEmail || '').trim().toLowerCase();
   const phone = String(input.customerPhone || '').trim();
 
-  // Legacy: single contact field — only allowed if name + contact look complete enough
-  // Prefer explicit email+phone. No guest fallback.
-  if (!name || !email || !phone) {
+  // No guest fallback: name + phone are required (email is optional).
+  if (!name || !phone) {
     const err = new Error(
-      'Start a chat session first (name, email, and phone), or pass conversationId'
+      'Start a chat session first (name and phone), or pass conversationId'
     );
     err.status = 400;
     throw err;
@@ -276,6 +383,7 @@ async function alertAssignedAdmin(conversation, text) {
 async function escalate(conversation, reason, detail) {
   conversation.status = 'needs_human';
   conversation.assignedAdminId = null;
+  conversation.flow = null;
   conversation.lastActivityAt = new Date();
   await conversation.save();
 

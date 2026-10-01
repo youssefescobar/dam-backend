@@ -8,7 +8,7 @@ import { getCompanySettings } from '../models/Settings.js';
 
 const sessionSchema = z.object({
   name: z.string().min(1, 'name is required'),
-  email: z.string().email('valid email is required'),
+  email: z.string().email().optional().or(z.literal('')),
   phone: z.string().min(5, 'phone is required'),
 });
 

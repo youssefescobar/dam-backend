@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const customerSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, trim: true, lowercase: true, index: true },
+    email: { type: String, default: '', trim: true, lowercase: true, index: true },
     phone: { type: String, required: true, trim: true, index: true },
     /** Denormalized display field (phone preferred). */
     contact: { type: String, required: true, trim: true },
@@ -29,14 +29,14 @@ export async function findOrUpsertCustomer(input) {
   const name = String(input.name || '').trim();
   const email = String(input.email || '').trim().toLowerCase();
   const phone = String(input.phone || '').trim();
-  if (!name || !email || !phone) {
-    const err = new Error('name, email, and phone are required');
+  if (!name || !phone) {
+    const err = new Error('name and phone are required');
     err.status = 400;
     throw err;
   }
 
   let customer = await Customer.findOne({
-    $or: [{ email }, { phone }],
+    $or: email ? [{ email }, { phone }] : [{ phone }],
   });
 
   const contact = phone || email;
@@ -51,7 +51,7 @@ export async function findOrUpsertCustomer(input) {
     });
   } else {
     customer.name = name;
-    customer.email = email;
+    if (email) customer.email = email;
     customer.phone = phone;
     customer.contact = contact;
     if (input.channel) customer.channel = input.channel;

@@ -143,7 +143,7 @@ export function isExplicitHumanRequest(text) {
 
 /** Immediate safety / critical escalation (info.md triggers). */
 const SAFETY_ESCALATE_RE =
-  /\b(accident|crash|collision|injured|injury|unsafe\s+driv|missing\s+(child|person|kid)|kidnap|fraud|scam|emergency|911)\b|حادث|إصابة|قيادة\s*غير\s*آمنة|مفقود|احتيال|طوارئ|خطر\s*مباشر/i;
+  /\b(accident|crash|collision|injured|injury|unsafe\s+driv\w*|reckless\w*|speeding|missing\s+(child|person|kid)|(child|kid|person)\s+(is\s+|has\s+gone\s+|went\s+)?missing|lost\s+(child|kid)|kidnap\w*|fraud\w*|scam\w*|chargeback|unauthori[sz]ed\s+(charge|payment)|double\s+charged|payment\s+dispute|refund\s+dispute|(passport|id\s+number|personal\s+data)\s+of\s+(another|other|a)\s+(passenger|customer)|emergency|911)\b|حادث|إصابة|قيادة\s*(غير\s*آمنة|متهورة)|طفل\s*مفقود|شخص\s*مفقود|احتيال|نصب|نزاع\s*(على\s*)?(دفع|الدفع|مالي)|خصم\s*(غير\s*مصرح|مرتين)|بيانات\s*(شخصية\s*)?(لراكب|ركاب)|طوارئ|خطر\s*مباشر/i;
 
 export function isImmediateSafetyEscalation(text) {
   return SAFETY_ESCALATE_RE.test(String(text || ''));

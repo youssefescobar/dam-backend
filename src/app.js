@@ -11,6 +11,7 @@ import chatRouter from './routes/chat.js';
 import pushRouter from './routes/push.js';
 import conversationsRouter from './routes/conversations.js';
 import settingsRouter from './routes/settings.js';
+import reportsRouter from './routes/reports.js';
 
 /**
  * Create Express application (no listen / no DB connect).
@@ -41,6 +42,7 @@ export function createApp(options = {}) {
   app.use('/push', pushRouter);
   app.use('/conversations', conversationsRouter);
   app.use('/settings', settingsRouter);
+  app.use('/reports', reportsRouter);
 
   app.use(errorHandler);
 

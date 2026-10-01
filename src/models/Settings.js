@@ -55,12 +55,12 @@ const settingsSchema = new mongoose.Schema(
     botGreetingEn: {
       type: String,
       default:
-        'Welcome to Durrah Al-Munawwara Transport. How can I help? Choose booking or quote, trip follow-up, Hajj & Umrah, corporate transport, international, complaint or lost items, or talk to an agent.',
+        'Hi, I’m Durri, the Durrah Al-Munawwara Transport assistant. How can I help? Choose booking or quote, trip follow-up, Hajj & Umrah, corporate transport, international, complaint or lost items, or talk to an agent.',
     },
     botGreetingAr: {
       type: String,
       default:
-        'أهلاً بك في درة المنورة للنقل. كيف أستطيع مساعدتك؟ يمكنك اختيار حجز أو عرض سعر، متابعة رحلة، الحج والعمرة، نقل الشركات، النقل الدولي، شكوى أو مفقودات، أو التحدث مع موظف.',
+        'أهلاً بك، أنا دُرّي مساعد درة المنورة للنقل. كيف أستطيع مساعدتك؟ يمكنك اختيار حجز أو عرض سعر، متابعة رحلة، الحج والعمرة، نقل الشركات، النقل الدولي، شكوى أو مفقودات، أو التحدث مع موظف.',
     },
     botClosingEn: {
       type: String,

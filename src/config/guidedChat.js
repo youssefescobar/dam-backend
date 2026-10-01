@@ -14,7 +14,8 @@ export const MAIN_MENU_OPTIONS = [
   { id: 'international', label: 'International routes', labelAr: 'الرحلات الدولية' },
   { id: 'care', label: 'Munawwara Care', labelAr: 'منورة كير' },
   { id: 'quote', label: 'How to get a quote', labelAr: 'طلب عرض سعر' },
-  { id: 'complaint', label: 'Complaint or lost item', labelAr: 'شكوى أو مفقودات' },
+  { id: 'complaint', label: 'Make a complaint', labelAr: 'تقديم شكوى' },
+  { id: 'lost_found', label: 'Lost an item', labelAr: 'مفقودات' },
   { id: 'human', label: 'Talk to a human', labelAr: 'التحدث مع موظف' },
   { id: 'free_text', label: 'Type my own question', labelAr: 'اكتب سؤالي' },
 ];
@@ -71,9 +72,11 @@ export const GUIDED_NODES = {
       'Happy to help with a quote. Send: name, organization, contact, service type, passenger count, origin, destination, date/time, bus class if known, and any accessibility or luggage notes. A request number is issued after consent; confirmation comes only after an official offer.',
     options: 'main',
   },
-  complaint: {
-    answer:
-      'For a complaint or lost item, send your name, mobile, trip or booking number, date, and a short description (plus a photo if available). We log a report number and follow the approved response time. Safety issues are escalated immediately.',
+  // Handled by the guided form flow in services/chat.js (config/guidedForms.js).
+  complaint: { startFlow: 'complaint' },
+  lost_found: { startFlow: 'lost_found' },
+  cancel_flow: {
+    answer: 'No problem — I’ve cancelled that. What else can I help with?',
     options: 'main',
   },
   human: {
@@ -118,7 +121,7 @@ export function getWelcomePayload(settings) {
 
 export function greetingWelcome(settings) {
   if (settings?.botGreetingEn) return settings.botGreetingEn;
-  return 'Welcome to Durrah Al-Munawwara Transport. How can I help? Choose booking or quote, trip follow-up, Hajj & Umrah, corporate transport, international, complaint or lost items, or talk to an agent.';
+  return 'Hi, I’m Durri, the Durrah Al-Munawwara Transport assistant. How can I help? Choose booking or quote, trip follow-up, Hajj & Umrah, corporate transport, international, complaint or lost items, or talk to an agent.';
 }
 
 /**
