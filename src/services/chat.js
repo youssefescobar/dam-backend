@@ -14,6 +14,7 @@ import { notifyAdmins, notifyAdmin } from './push.js';
 import { emitToAdminQueue, emitToConversation } from '../sockets/chat.js';
 import {
   EXTRA_OPTIONS,
+  ALL_TOPIC_OPTIONS,
   MAIN_MENU_OPTIONS,
   REPLIES,
   detectIntent,
@@ -156,7 +157,7 @@ export async function handleChatMessage(input) {
   if (typedLang && !conversation.flow?.type) lang = typedLang;
   if (conversation.language !== lang) conversation.language = lang;
 
-  const choiceLabel = MAIN_MENU_OPTIONS.find((o) => o.id === choiceId);
+  const choiceLabel = ALL_TOPIC_OPTIONS.find((o) => o.id === choiceId);
   const messageText =
     typed ||
     (choiceLabel ? (lang === 'ar' ? choiceLabel.labelAr : choiceLabel.label) : '') ||

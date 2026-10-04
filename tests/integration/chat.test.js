@@ -186,7 +186,7 @@ describe('POST /chat/session & /chat/message', () => {
     expect(res.body.escalated).toBe(false);
     expect(res.body.reason).toBe('guided');
     expect(res.body.answer).toMatch(/8 AM|8 PM|Saturday|hours/i);
-    expect(res.body.options?.some((o) => o.id === 'about')).toBe(true);
+    expect(res.body.options?.some((o) => o.id === 'quote')).toBe(true);
   });
 
   it('soft-fails when LLM fails without locking the conversation', async () => {

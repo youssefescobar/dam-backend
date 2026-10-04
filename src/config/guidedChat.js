@@ -28,8 +28,8 @@ export function detectLang(text) {
 /** Pick the string for a language from a `{ en, ar }` pair. */
 export const pickText = (pair, lang) => (normalizeLang(lang) === 'ar' ? pair.ar : pair.en);
 
-/** Main menu. Order matters — it is the order customers see. */
-export const MAIN_MENU_OPTIONS = [
+/** Every guided topic. Used for lookups; only some are shown as menu buttons. */
+export const ALL_TOPIC_OPTIONS = [
   { id: 'quote', label: 'Get a quote', labelAr: 'طلب عرض سعر' },
   { id: 'airport', label: 'Airport transfers', labelAr: 'نقل المطارات' },
   { id: 'hajj', label: 'Hajj & Umrah', labelAr: 'الحج والعمرة' },
@@ -46,6 +46,10 @@ export const MAIN_MENU_OPTIONS = [
   { id: 'human', label: 'Talk to a human', labelAr: 'التحدث مع موظف' },
 ];
 
+/** Menu buttons customers see (kept to five). Order matters. Other topics stay reachable by typing. */
+const MENU_IDS = ['quote', 'hajj', 'airport', 'complaint', 'human'];
+export const MAIN_MENU_OPTIONS = MENU_IDS.map((id) => ALL_TOPIC_OPTIONS.find((o) => o.id === id));
+
 /** Buttons that are not menu topics. `href` options are links the UI opens. */
 export const EXTRA_OPTIONS = {
   open_quote: {
@@ -55,16 +59,18 @@ export const EXTRA_OPTIONS = {
     href: '/quote',
   },
   cancel_flow: { id: 'cancel_flow', label: 'Cancel', labelAr: 'إلغاء' },
-  human: MAIN_MENU_OPTIONS.find((o) => o.id === 'human'),
-  contact: MAIN_MENU_OPTIONS.find((o) => o.id === 'contact'),
+  human: ALL_TOPIC_OPTIONS.find((o) => o.id === 'human'),
+  contact: ALL_TOPIC_OPTIONS.find((o) => o.id === 'contact'),
   main_menu: { id: 'main_menu', label: 'Main menu', labelAr: 'القائمة الرئيسية' },
 };
 
 /** Turn option records into the shape the UI renders, in one language. */
 export function localizeOptions(options, lang) {
   const ar = normalizeLang(lang) === 'ar';
+  const seen = new Set();
   return (options || [])
     .filter(Boolean)
+    .filter((o) => !seen.has(o.id) && seen.add(o.id))
     .map((o) => {
       const out = { id: o.id, label: ar ? o.labelAr || o.label : o.label };
       if (o.href) out.href = o.href;
@@ -215,7 +221,7 @@ export function findChoiceIdByLabel(text) {
   const raw = String(text || '').trim();
   const t = raw.toLowerCase();
   if (!t) return null;
-  const all = [...MAIN_MENU_OPTIONS, EXTRA_OPTIONS.main_menu, EXTRA_OPTIONS.cancel_flow];
+  const all = [...ALL_TOPIC_OPTIONS, EXTRA_OPTIONS.main_menu, EXTRA_OPTIONS.cancel_flow];
   const hit = all.find((o) => o.label.toLowerCase() === t || (o.labelAr && o.labelAr === raw));
   return hit?.id || null;
 }

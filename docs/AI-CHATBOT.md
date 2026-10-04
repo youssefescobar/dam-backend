@@ -165,7 +165,9 @@ Every response carries a `reason` the UI and tests can use:
 
 ### Menu topics (`MAIN_MENU_OPTIONS`)
 
-`quote`, `airport`, `hajj`, `workers`, `school`, `tourism`, `international`, `care`, `about`, `hours`, `contact`, `complaint`, `lost_found`, `human`.
+The menu shows five buttons: `quote`, `hajj`, `airport`, `complaint`, `human`.
+
+All other topics stay in `ALL_TOPIC_OPTIONS` and still work: `workers`, `school`, `tourism`, `international`, `care`, `about`, `hours`, `contact`, `lost_found`. Customers reach them by typing (keyword shortcuts and the FAQ), and the quote wizard covers company, school and tourism trips. To change the menu, edit `MENU_IDS` in `src/config/guidedChat.js`.
 
 Each non-form topic has a fixed `{ en, ar }` answer in `GUIDED_NODES`. `hours` and `contact` are built from live **Settings** (hours, phones, WhatsApp, email, address); `quote` appends the WhatsApp number.
 
