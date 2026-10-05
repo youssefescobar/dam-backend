@@ -30,6 +30,7 @@ const createQuoteSchema = z.object({
       'government',
       'school',
       'hajj_mission',
+      'umrah_campaigns',
       'tourism',
       'group',
       'corporate',
@@ -97,7 +98,7 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
     });
 
     const assignedDepartment =
-      data.customerType === 'hajj_mission'
+      (data.customerType === 'hajj_mission' || data.customerType === 'umrah_campaigns')
         ? 'hajj'
         : data.customerType === 'company' ||
             data.customerType === 'corporate' ||

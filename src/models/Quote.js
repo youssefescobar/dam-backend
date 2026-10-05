@@ -39,6 +39,7 @@ const quoteSchema = new mongoose.Schema(
         'government',
         'school',
         'hajj_mission',
+      'umrah_campaigns',
         'tourism',
         'group',
         'corporate',
