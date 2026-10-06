@@ -10,6 +10,13 @@ import { HttpError } from '../middleware/errorHandler.js';
 import { notifyAdmins } from '../services/push.js';
 import { getCompanySettings } from '../models/Settings.js';
 
+const legSchema = z.object({
+  from: z.string().trim().min(1, 'leg from is required'),
+  to: z.string().trim().min(1, 'leg to is required'),
+  date: z.string().trim().max(40).optional().default(''),
+  time: z.string().trim().max(20).optional().default(''),
+});
+
 const createQuoteSchema = z.object({
   customerName: z.string().min(1, 'customerName is required'),
   customerContact: z.string().min(1, 'customerContact is required'),
@@ -49,6 +56,7 @@ const createQuoteSchema = z.object({
   accessibilityNeeds: z.string().optional().default(''),
   specialRequirements: z.string().optional().default(''),
   stops: z.string().optional().default(''),
+  legs: z.array(legSchema).max(10).optional().default([]),
   departureTime: z.string().optional().default(''),
   waitingHours: z.coerce.number().min(0).optional().nullable(),
   needsSupervisors: z.boolean().optional().default(false),
@@ -132,6 +140,7 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
       accessibilityNeeds: data.accessibilityNeeds || '',
       specialRequirements: data.specialRequirements || '',
       stops: data.stops || '',
+      legs: data.legs || [],
       departureTime: data.departureTime || '',
       waitingHours: data.waitingHours ?? null,
       needsSupervisors: Boolean(data.needsSupervisors),

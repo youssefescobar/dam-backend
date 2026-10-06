@@ -71,6 +71,53 @@ describe('Quotes & Auth & KB (Phase 1)', () => {
       expect(inDb).not.toBeNull();
       expect(inDb.dropoff).toBe('Downtown');
     });
+
+    it('keeps every leg of a multi-leg trip in order', async () => {
+      const legs = [
+        { from: 'Jeddah Airport', to: 'Makkah', date: '2026-11-01', time: '09:00' },
+        { from: 'Makkah', to: 'Madinah', date: '2026-11-04', time: '14:30' },
+        { from: 'Madinah', to: 'Jeddah Airport', date: '2026-11-08', time: '07:15' },
+      ];
+      const res = await request(app).post('/quotes').send({
+        customerName: 'Ada Lovelace',
+        customerContact: '+966500000000',
+        pickup: 'Jeddah Airport',
+        dropoff: 'Jeddah Airport',
+        date: '2026-11-01',
+        passengers: 30,
+        legs,
+      });
+
+      expect(res.status).toBe(201);
+      const inDb = await Quote.findById(res.body.quote._id).lean();
+      expect(inDb.legs).toEqual(legs);
+    });
+
+    it('rejects a leg without a destination', async () => {
+      const res = await request(app).post('/quotes').send({
+        customerName: 'Ada Lovelace',
+        customerContact: '+966500000000',
+        pickup: 'Makkah',
+        dropoff: 'Madinah',
+        date: '2026-11-01',
+        passengers: 4,
+        legs: [{ from: 'Makkah', to: '' }],
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('defaults legs to an empty list for single-trip quotes', async () => {
+      const res = await request(app).post('/quotes').send({
+        customerName: 'Ada Lovelace',
+        customerContact: 'ada@example.com',
+        pickup: 'Airport',
+        dropoff: 'Downtown',
+        date: '2026-10-01',
+        passengers: 4,
+      });
+      expect(res.status).toBe(201);
+      expect(res.body.quote.legs).toEqual([]);
+    });
   });
 
   describe('Admin auth', () => {

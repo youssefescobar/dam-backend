@@ -1,5 +1,16 @@
 import mongoose from 'mongoose';
 
+/** One hop of a multi-leg trip, kept exactly as the customer entered it. */
+const legSchema = new mongoose.Schema(
+  {
+    from: { type: String, required: true, trim: true },
+    to: { type: String, required: true, trim: true },
+    date: { type: String, default: '', trim: true },
+    time: { type: String, default: '', trim: true },
+  },
+  { _id: false }
+);
+
 const quoteSchema = new mongoose.Schema(
   {
     customerId: {
@@ -60,6 +71,7 @@ const quoteSchema = new mongoose.Schema(
     accessibilityNeeds: { type: String, default: '' },
     specialRequirements: { type: String, default: '' },
     stops: { type: String, default: '', trim: true },
+    legs: { type: [legSchema], default: [] },
     departureTime: { type: String, default: '', trim: true },
     waitingHours: { type: Number, default: null, min: 0 },
     needsSupervisors: { type: Boolean, default: false },
