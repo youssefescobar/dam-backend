@@ -21,6 +21,11 @@ export function emitToAdminQueue(event, payload) {
   }
 }
 
+/** Agents currently connected to the admin queue, or null when sockets are not running. */
+export async function countOnlineAdmins() {
+  return io ? (await io.in('admin-queue').fetchSockets()).length : null;
+}
+
 export function emitToConversation(conversationId, event, payload) {
   if (io) {
     io.to(`conversation:${conversationId}`).emit(event, payload);

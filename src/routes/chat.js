@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { validateBody } from '../middleware/validate.js';
 import { getConversationForResume, handleChatMessage, startChatSession } from '../services/chat.js';
-import { getWelcomePayload, menuOptions, normalizeLang } from '../config/guidedChat.js';
+import { REPLIES, getWelcomePayload, menuOptions, normalizeLang, pickText } from '../config/guidedChat.js';
 import { getCompanySettings } from '../models/Settings.js';
 
 const langSchema = z.enum(['en', 'ar']).optional();
@@ -39,6 +39,24 @@ const chatLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
+});
+
+/** Per-customer cap on top of the per-IP one (shared Wi-Fi shouldn't throttle everyone, one chat shouldn't flood). */
+const customerLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: () => Number(process.env.CHAT_CUSTOMER_MAX_PER_MIN) || 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  keyGenerator: (req) => {
+    const b = req.body || {};
+    const phone = String(b.customerPhone || '').replace(/\D/g, '');
+    return b.conversationId ? `c:${b.conversationId}` : phone ? `p:${phone}` : ipKeyGenerator(req.ip);
+  },
+  handler: (req, res) => {
+    const lang = normalizeLang(req.body?.lang);
+    res.status(429).json({ error: pickText(REPLIES.rateLimited, lang), reason: 'rate_limited' });
+  },
 });
 
 const langFrom = (req) => normalizeLang(req.query.lang);
@@ -95,7 +113,7 @@ router.get('/history', chatLimiter, async (req, res, next) => {
   }
 });
 
-router.post('/message', chatLimiter, validateBody(messageSchema), async (req, res, next) => {
+router.post('/message', chatLimiter, customerLimiter, validateBody(messageSchema), async (req, res, next) => {
   try {
     const result = await handleChatMessage(req.body);
     res.status(200).json({

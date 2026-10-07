@@ -62,16 +62,13 @@ const settingsSchema = new mongoose.Schema(
       default:
         'أهلاً بك، أنا دُرّي مساعد درة المنورة للنقل. كيف أستطيع مساعدتك؟ اختر موضوعاً من الأسفل أو اكتب سؤالك.',
     },
-    botClosingEn: {
-      type: String,
-      default:
-        'Your request was logged as [request number]. Please review the summary and confirm your contact number. You will receive an update via [channel] within [approved SLA].',
-    },
-    botClosingAr: {
-      type: String,
-      default:
-        'تم تسجيل طلبك برقم [رقم الطلب]. يرجى مراجعة الملخص والتأكد من صحة رقم التواصل. سيصلك التحديث عبر [القناة] خلال [زمن الخدمة المعتمد].',
-    },
+    /** Optional office-hours awareness; off by default (behaviour unchanged). */
+    officeHoursEnabled: { type: Boolean, default: false },
+    timezone: { type: String, default: 'Asia/Riyadh' },
+    /** 0 = Sunday … 6 = Saturday. */
+    officeDays: { type: [Number], default: [0, 1, 2, 3, 4] },
+    officeStart: { type: String, default: '09:00' },
+    officeEnd: { type: String, default: '17:00' },
   },
   { timestamps: true }
 );

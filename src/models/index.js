@@ -6,3 +6,4 @@ export * from './Report.js';
 export * from './KnowledgeBaseEntry.js';
 export * from './Admin.js';
 export * from './Settings.js';
+export * from './UnansweredQuestion.js';

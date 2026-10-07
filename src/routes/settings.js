@@ -3,6 +3,9 @@ import { Router } from 'express';
 import { getCompanySettings } from '../models/Settings.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
+import { validTimezone } from '../services/officeHours.js';
+
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const patchSchema = z.object({
   legalNameAr: z.string().optional(),
@@ -22,8 +25,11 @@ const patchSchema = z.object({
   complaintSlaHours: z.coerce.number().int().min(1).max(720).optional(),
   botGreetingEn: z.string().optional(),
   botGreetingAr: z.string().optional(),
-  botClosingEn: z.string().optional(),
-  botClosingAr: z.string().optional(),
+  officeHoursEnabled: z.boolean().optional(),
+  timezone: z.string().refine(validTimezone, 'Unknown timezone').optional(),
+  officeDays: z.array(z.number().int().min(0).max(6)).optional(),
+  officeStart: z.string().regex(HHMM).optional(),
+  officeEnd: z.string().regex(HHMM).optional(),
 });
 
 const router = Router();

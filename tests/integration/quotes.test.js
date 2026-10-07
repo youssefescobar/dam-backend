@@ -207,3 +207,63 @@ describe('Quotes & Auth & KB (Phase 1)', () => {
     });
   });
 });
+describe('PUT /quotes/:id (customer edit)', () => {
+  let app;
+  const body = {
+    customerName: 'Ada Lovelace',
+    customerContact: 'ada@example.com',
+    pickup: 'Airport',
+    dropoff: 'Downtown',
+    date: '2026-10-01T10:00:00.000Z',
+    passengers: 3,
+  };
+
+  beforeAll(async () => {
+    process.env.JWT_SECRET = 'test-jwt-secret-for-jest';
+    await startTestDb();
+    app = createApp();
+  });
+  afterAll(stopTestDb);
+  beforeEach(clearDb);
+
+  it('edits with the token, marks editedAt and never leaks the token hash', async () => {
+    const created = await request(app).post('/quotes').send(body);
+    expect(created.body.editToken).toBeTruthy();
+    expect(created.body.quote.editTokenHash).toBeUndefined();
+    const id = created.body.quote._id;
+
+    const res = await request(app)
+      .put(`/quotes/${id}`)
+      .set('x-edit-token', created.body.editToken)
+      .send({ ...body, dropoff: 'Harbour', passengers: 5 });
+    expect(res.status).toBe(200);
+    expect(res.body.quote.dropoff).toBe('Harbour');
+    expect(res.body.quote.editedAt).toBeTruthy();
+    expect(res.body.quote.editTokenHash).toBeUndefined();
+  });
+
+  it('rejects a missing or wrong token and invalid data', async () => {
+    const created = await request(app).post('/quotes').send(body);
+    const id = created.body.quote._id;
+    expect((await request(app).put(`/quotes/${id}`).send(body)).status).toBe(404);
+    expect(
+      (await request(app).put(`/quotes/${id}`).set('x-edit-token', 'nope').send(body)).status
+    ).toBe(404);
+    const bad = await request(app)
+      .put(`/quotes/${id}`)
+      .set('x-edit-token', created.body.editToken)
+      .send({ ...body, passengers: 0 });
+    expect(bad.status).toBe(400);
+  });
+
+  it('refuses edits once the quote is no longer new', async () => {
+    const created = await request(app).post('/quotes').send(body);
+    const id = created.body.quote._id;
+    await Quote.updateOne({ _id: id }, { status: 'quoted' });
+    const res = await request(app)
+      .put(`/quotes/${id}`)
+      .set('x-edit-token', created.body.editToken)
+      .send(body);
+    expect(res.status).toBe(409);
+  });
+});

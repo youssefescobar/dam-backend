@@ -296,6 +296,10 @@ On handover: `status = needs_human`, any open form is dropped, a system message 
 
 Regex notes (kept deliberately narrow): bare Arabic `شخص` (“50 شخص”) is *not* a request for staff; “terrible/unhappy” alone do not start a complaint form.
 
+### Out of hours and queueing
+
+If `officeHoursEnabled` and the handover happens outside the configured hours, the handover notice adds “our team is offline… back <day> at <time>”. Otherwise, if no agent is connected to the admin queue, it says the message is queued. Arabic wording is simple and marked for native review (`REPLIES.offlineHours/offlineQueued` in `guidedChat.js`).
+
 ---
 
 ## 10. Conversation lifecycle and resume
@@ -305,6 +309,10 @@ Statuses: `ai_handling` → `needs_human` → `claimed` → `closed`.
 - **Idle auto-close** (checked every minute): `claimed` after 30 min, `needs_human` after 2 h, `ai_handling` after 24 h (`CHAT_CLAIMED_IDLE_MS`, `CHAT_NEEDS_HUMAN_IDLE_MS`, `CHAT_AI_IDLE_MS`). The customer sees a localised notice; admins are notified. A new message from the customer reopens a closed chat as `ai_handling`.
 - **Admin close:** `PATCH /conversations/:id { status: "closed" }`.
 - **Resume:** the website keeps the conversation id in `localStorage`. On open it calls `GET /chat/history?conversationId=…&phone=…`. The server checks the phone (last 9 digits must match the customer record) and returns messages, status, language and the right buttons. Closed or older than 24 h → `resumable: false` and a fresh chat starts.
+
+### Unanswered questions and analytics
+
+Turns ending in `model_uncertain`, `empty_kb` or `llm_failure` are logged to `UnansweredQuestion` (grouped by text + language, with a count). Admin-only: `GET /insights/unanswered?status=open`, `PATCH /insights/unanswered/:id { status: resolved|dismissed }`, `GET /insights/analytics?from=&to=` (handovers by reason, menu topics, handover rate, miss rate). `Message.reason/topic` feed the analytics. The admin **Insights** page shows both.
 
 ---
 
@@ -329,7 +337,7 @@ Customers join room `conversation:<id>`; agents join `admin-queue` (admin JWT re
 
 ## 12. HTTP API
 
-The session, message and history endpoints are rate-limited to 60 requests/minute/IP; session and message bodies are validated with zod. The menu endpoints (`/guided`, `/options`) are public and not rate-limited.
+The session, message and history endpoints are rate-limited to 60 requests/minute/IP; `/chat/message` also allows `CHAT_CUSTOMER_MAX_PER_MIN` (default 20) per conversation (or phone), answering 429 with a localised message; session and message bodies are validated with zod. The menu endpoints (`/guided`, `/options`) are public and not rate-limited.
 
 | Method & path | Auth | Purpose |
 |---|---|---|
@@ -361,9 +369,10 @@ Only `name` and `phone` are required to chat; `email` is optional.
 
 ## 14. Admin panel (dam-admin)
 
-- **Inbox:** live list of waiting/claimed/closed chats; claim, reply, close.
+- **Inbox:** live list of waiting/claimed/closed chats; claim, reply, close. Each bubble is labelled Customer / Durri / Agent / System.
 - **Reports:** complaints and lost items with status, SLA overdue flag, a link to the chat, and live toasts.
-- **Knowledge:** add/edit/import FAQ rows.
+- **Knowledge:** add/edit/import FAQ rows; warns when an entry (same source ID) has no Arabic/English twin.
+- **Insights:** analytics card and the unanswered-questions list.
 - **Settings:** company details, hours, WhatsApp, SLAs, and the Durri greetings (EN/AR).
 - **Durri chat:** a playground that uses the real customer endpoints — handy for testing prompts and the KB.
 - **Push notifications:** new quote, new report, chat waiting, customer replied to my claimed chat.
@@ -385,7 +394,7 @@ Backend (`.env`):
 
 Website: `CHAT_API_URL` (server-side proxy target) and `NEXT_PUBLIC_CHAT_API_URL` (browser sockets).
 
-Company **Settings** (admin): `botGreetingEn/Ar`, `workingHoursEn/Ar`, `phones`, `whatsappNumber`, `email`, `addressEn/Ar`, `complaintSlaHours` (reports), `quoteSlaHours` (quote confirmation). `botClosingEn/Ar` are stored but not used by the chat pipeline today.
+Company **Settings** (admin): `botGreetingEn/Ar`, `workingHoursEn/Ar`, `phones`, `whatsappNumber`, `email`, `addressEn/Ar`, `complaintSlaHours` (reports), `quoteSlaHours` (quote confirmation). Optional office hours (off by default): `officeHoursEnabled`, `timezone`, `officeDays` (0 = Sunday), `officeStart`, `officeEnd`.
 
 ---
 
@@ -437,5 +446,5 @@ To try it for real: run the backend with a Mongo URI and `GEMINI_API_KEY`, run t
 - Durri only knows what is in the FAQ and Settings — it has no live fares, schedules or booking data, so it routes those to the quote form or a person.
 - Guided answers are fixed text; update them in code (or move them to the database if staff need to edit them).
 - Language detection is script-based (Arabic vs Latin) and needs at least 3 letters.
-- Rate limiting is per IP; there is no per-customer abuse protection or analytics dashboard yet.
+- Rate limiting covers HTTP only (per IP, plus per conversation/phone); the socket `chat:message` path is not limited. No satisfaction rating yet.
 - The Reports page and the new chat flow have been verified in automated tests and a scripted browser run, not with long-term production traffic — watch the first days of real chats.

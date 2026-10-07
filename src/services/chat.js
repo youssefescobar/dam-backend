@@ -11,7 +11,7 @@ import {
   classifyChitchat,
 } from './llm.js';
 import { notifyAdmins, notifyAdmin } from './push.js';
-import { emitToAdminQueue, emitToConversation } from '../sockets/chat.js';
+import { countOnlineAdmins, emitToAdminQueue, emitToConversation } from '../sockets/chat.js';
 import {
   EXTRA_OPTIONS,
   ALL_TOPIC_OPTIONS,
@@ -30,6 +30,8 @@ import {
   resolveGuidedOptions,
 } from '../config/guidedChat.js';
 import { getCompanySettings } from '../models/Settings.js';
+import { logUnanswered } from '../models/UnansweredQuestion.js';
+import { isOpenNow, nextOpeningText } from './officeHours.js';
 import { Report } from '../models/Report.js';
 import {
   formIntro,
@@ -244,6 +246,7 @@ export async function handleChatMessage(input) {
     conversation.unsureStreak = 0;
     return replyAi(conversation, guidedAnswerText(choiceId, settings, lang), {
       reason: guided.freeText ? 'guided_free_text' : 'guided',
+      topic: choiceId,
       options: resolveGuidedOptions(guided, lang),
       lang,
     });
@@ -272,6 +275,7 @@ export async function handleChatMessage(input) {
   }
 
   if (!faqEntries.length) {
+    await logMiss(conversation, typed, lang, 'empty_kb');
     return replyAi(conversation, pickText(REPLIES.emptyKb, lang), {
       reason: 'empty_kb',
       options: menuOptions(lang),
@@ -288,6 +292,7 @@ export async function handleChatMessage(input) {
       lang,
     });
   } catch (err) {
+    await logMiss(conversation, typed, lang, 'llm_failure');
     return replyAi(conversation, pickText(REPLIES.llmDown, lang), {
       reason: 'llm_failure',
       options: menuOptions(lang),
@@ -302,6 +307,7 @@ export async function handleChatMessage(input) {
   }
 
   if (looksLikeDontKnow(llmResult.answer)) {
+    await logMiss(conversation, typed, lang, 'model_uncertain');
     conversation.unsureStreak = (conversation.unsureStreak || 0) + 1;
     if (conversation.unsureStreak >= MAX_UNSURE_STREAK) {
       return escalate(conversation, 'model_uncertain', undefined, lang);
@@ -322,6 +328,15 @@ export async function handleChatMessage(input) {
     faqCount: faqEntries.length,
     lang,
   });
+}
+
+/** Record an unanswered question for the admin log; never breaks the chat. */
+async function logMiss(conversation, question, lang, reason) {
+  try {
+    await logUnanswered({ question, language: lang, reason, conversationId: conversation._id });
+  } catch {
+    /* best effort */
+  }
 }
 
 /** Last few turns for the LLM (customer + Durri + staff; system notices skipped). */
@@ -439,6 +454,8 @@ async function replyAi(conversation, answer, extra = {}) {
     conversationId: conversation._id,
     sender: 'ai',
     text: answer,
+    reason: extra.reason || '',
+    topic: extra.topic || '',
   });
 
   await bumpConversationActivity(conversation, 'ai');
@@ -521,6 +538,21 @@ async function alertAssignedAdmin(conversation, text) {
   }).catch(() => {});
 }
 
+/** Extra handover line: team offline (outside office hours) or nobody online to pick it up. */
+export async function availabilityNote(lang, now = new Date()) {
+  let settings = null;
+  try {
+    settings = await getCompanySettings();
+  } catch {
+    return '';
+  }
+  if (!isOpenNow(settings, now)) {
+    const when = nextOpeningText(settings, lang, now);
+    return when ? pickText(REPLIES.offlineHours, lang).replace('{when}', when) : '';
+  }
+  return (await countOnlineAdmins()) === 0 ? pickText(REPLIES.offlineQueued, lang) : '';
+}
+
 async function escalate(conversation, reason, detail, lang = 'en') {
   conversation.status = 'needs_human';
   conversation.assignedAdminId = null;
@@ -528,12 +560,18 @@ async function escalate(conversation, reason, detail, lang = 'en') {
   conversation.lastActivityAt = new Date();
   await conversation.save();
 
-  const notice = pickText(reason === 'safety_critical' ? REPLIES.escalatedSafety : REPLIES.escalated, lang);
+  const notice = [
+    pickText(reason === 'safety_critical' ? REPLIES.escalatedSafety : REPLIES.escalated, lang),
+    await availabilityNote(lang),
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const sysMessage = await Message.create({
     conversationId: conversation._id,
     sender: 'system',
     text: notice,
+    reason,
   });
 
   emitToConversation(conversation._id.toString(), 'message:new', {

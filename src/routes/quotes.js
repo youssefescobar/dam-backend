@@ -1,3 +1,5 @@
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Router } from 'express';
 import { Quote } from '../models/Quote.js';
@@ -78,6 +80,45 @@ const patchQuoteSchema = z.object({
   priority: z.enum(['normal', 'high', 'urgent']).optional(),
 });
 
+const hashToken = (t) => createHash('sha256').update(String(t)).digest('hex');
+
+/** Customer-editable fields, shared by create and edit so both stay in sync. */
+const quoteFields = (data) => ({
+  pickup: data.pickup,
+  dropoff: data.dropoff,
+  date: data.date,
+  vehicleType: data.vehicleType || data.busClass || 'standard',
+  passengers: data.passengers,
+  notes: data.notes,
+  customerName: data.customerName,
+  customerContact: data.customerContact,
+  language: data.language || '',
+  customerType: data.customerType || data.tripType || '',
+  organization: data.organization || '',
+  email: data.email || data.customerEmail || '',
+  serviceType: data.serviceType || '',
+  originCity: data.originCity || '',
+  destinationCity: data.destinationCity || '',
+  returnDatetime: data.returnDatetime || null,
+  tripType: data.tripType || data.customerType || '',
+  busCount: data.busCount ?? null,
+  busClass: data.busClass || data.vehicleType || '',
+  luggageNotes: data.luggageNotes || '',
+  accessibilityNeeds: data.accessibilityNeeds || '',
+  specialRequirements: data.specialRequirements || '',
+  stops: data.stops || '',
+  legs: data.legs || [],
+  departureTime: data.departureTime || '',
+  waitingHours: data.waitingHours ?? null,
+  needsSupervisors: Boolean(data.needsSupervisors),
+  needsTracking: Boolean(data.needsTracking),
+  needsBranding: Boolean(data.needsBranding),
+  needsAirportReception: Boolean(data.needsAirportReception),
+  preferredContactChannel: data.preferredContactChannel || '',
+  consent: Boolean(data.consent),
+  priority: data.priority || 'normal',
+});
+
 const router = Router();
 
 router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
@@ -114,43 +155,13 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
           ? 'corporate'
           : 'sales';
 
+    const editToken = randomBytes(24).toString('hex');
     const quote = await Quote.create({
       customerId: customer._id,
       conversationId: conversation._id,
-      pickup: data.pickup,
-      dropoff: data.dropoff,
-      date: data.date,
-      vehicleType: data.vehicleType || data.busClass || 'standard',
-      passengers: data.passengers,
-      notes: data.notes,
-      customerName: data.customerName,
-      customerContact: data.customerContact,
-      language: data.language || '',
-      customerType: data.customerType || data.tripType || '',
-      organization: data.organization || '',
-      email: data.email || data.customerEmail || '',
-      serviceType: data.serviceType || '',
-      originCity: data.originCity || '',
-      destinationCity: data.destinationCity || '',
-      returnDatetime: data.returnDatetime || null,
-      tripType: data.tripType || data.customerType || '',
-      busCount: data.busCount ?? null,
-      busClass: data.busClass || data.vehicleType || '',
-      luggageNotes: data.luggageNotes || '',
-      accessibilityNeeds: data.accessibilityNeeds || '',
-      specialRequirements: data.specialRequirements || '',
-      stops: data.stops || '',
-      legs: data.legs || [],
-      departureTime: data.departureTime || '',
-      waitingHours: data.waitingHours ?? null,
-      needsSupervisors: Boolean(data.needsSupervisors),
-      needsTracking: Boolean(data.needsTracking),
-      needsBranding: Boolean(data.needsBranding),
-      needsAirportReception: Boolean(data.needsAirportReception),
-      preferredContactChannel: data.preferredContactChannel || '',
-      consent: Boolean(data.consent),
-      priority: data.priority || 'normal',
+      ...quoteFields(data),
       assignedDepartment,
+      editTokenHash: hashToken(editToken),
       status: 'new',
     });
 
@@ -189,6 +200,7 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
       conversationId: conversation._id,
       leadId,
       quoteSlaHours,
+      editToken,
     });
   } catch (err) {
     next(err);
@@ -247,6 +259,41 @@ router.patch('/:id', requireAuth, validateBody(patchQuoteSchema), async (req, re
     }
 
     res.json({ quote });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/:id', validateBody(createQuoteSchema), async (req, res, next) => {
+  try {
+    const token = req.get('x-edit-token') || '';
+    const quote = mongoose.isValidObjectId(req.params.id)
+      ? await Quote.findById(req.params.id).select('+editTokenHash')
+      : null;
+    const given = Buffer.from(hashToken(token));
+    const want = Buffer.from(quote?.editTokenHash || '');
+    // Same 404 for unknown id and bad token so ids cannot be probed.
+    if (!quote || !token || given.length !== want.length || !timingSafeEqual(given, want)) {
+      throw new HttpError(404, 'Quote not found');
+    }
+    if (quote.status !== 'new') {
+      throw new HttpError(409, 'Quote is already being processed and can no longer be edited');
+    }
+
+    const data = req.body;
+    quote.set({
+      ...quoteFields(data),
+      editedAt: new Date(),
+    });
+    await quote.save();
+
+    notifyAdmins({
+      title: 'Quote edited',
+      body: `${quote.leadId} · ${data.customerName} · ${data.pickup} → ${data.dropoff}`,
+      data: { type: 'quote', quoteId: quote._id.toString(), leadId: quote.leadId, url: '/quotes' },
+    }).catch(() => {});
+
+    res.json({ quote, leadId: quote.leadId });
   } catch (err) {
     next(err);
   }

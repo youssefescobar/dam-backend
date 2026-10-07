@@ -96,8 +96,17 @@ const quoteSchema = new mongoose.Schema(
       default: '',
       index: true,
     },
+    editTokenHash: { type: String, select: false },
+    editedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
+
+quoteSchema.set('toJSON', {
+  transform: (_doc, ret) => {
+    delete ret.editTokenHash;
+    return ret;
+  },
+});
 
 export const Quote = mongoose.models.Quote || mongoose.model('Quote', quoteSchema);
