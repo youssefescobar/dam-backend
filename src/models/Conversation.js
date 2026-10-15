@@ -34,7 +34,7 @@ const conversationSchema = new mongoose.Schema(
     },
     /** Customer's language (website locale, then detected from what they type). */
     language: { type: String, enum: ['en', 'ar'], default: 'en' },
-    /** Consecutive turns Durri could not answer; resets on any good answer. */
+    /** Consecutive turns Durra AI could not answer; resets on any good answer. */
     unsureStreak: { type: Number, default: 0 },
     /** Active guided form (complaint / lost & found), or null. */
     flow: {
