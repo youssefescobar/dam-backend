@@ -205,6 +205,42 @@ describe('Quotes & Auth & KB (Phase 1)', () => {
       expect(res.body.quote.status).toBe('quoted');
       expect(res.body.quote.quotedPrice).toBe(120);
     });
+
+    it('keeps staff notes when the customer edits their request', async () => {
+      const created = await request(app).post('/quotes').send({
+        customerName: 'Ada',
+        customerContact: 'ada@example.com',
+        pickup: 'A',
+        dropoff: 'B',
+        date: '2026-10-01',
+        passengers: 2,
+        notes: 'Customer note',
+      });
+      const id = created.body.quote._id;
+
+      const patched = await request(app)
+        .patch(`/quotes/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ staffNotes: 'Called, wants 2 buses' });
+      expect(patched.body.quote.staffNotes).toBe('Called, wants 2 buses');
+      expect(patched.body.quote.notes).toBe('Customer note');
+
+      await request(app)
+        .put(`/quotes/${id}`)
+        .set('x-edit-token', created.body.editToken)
+        .send({
+          customerName: 'Ada',
+          customerContact: 'ada@example.com',
+          pickup: 'A',
+          dropoff: 'C',
+          date: '2026-10-01',
+          passengers: 2,
+          notes: 'Changed my mind',
+        });
+      const saved = await Quote.findById(id).lean();
+      expect(saved.notes).toBe('Changed my mind');
+      expect(saved.staffNotes).toBe('Called, wants 2 buses');
+    });
   });
 });
 describe('PUT /quotes/:id (customer edit)', () => {
