@@ -37,6 +37,12 @@ const quoteSchema = new mongoose.Schema(
       index: true,
     },
     quotedPrice: { type: Number, default: null },
+    /** When the quote last moved to "quoted"; drives the follow-up reminder. */
+    quotedAt: { type: Date, default: null },
+    /** Set once the "past the reply SLA" reminder went out. */
+    overdueRemindedAt: { type: Date, default: null },
+    /** Set once the "no answer since we quoted" reminder went out. */
+    followUpRemindedAt: { type: Date, default: null },
     customerName: { type: String, required: true },
     customerContact: { type: String, required: true },
     // Expanded lead fields (info.md integration)

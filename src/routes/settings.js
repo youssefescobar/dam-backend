@@ -22,6 +22,7 @@ const patchSchema = z.object({
   cancellationPolicy: z.string().optional(),
   childFareNote: z.string().optional(),
   quoteSlaHours: z.coerce.number().int().min(1).max(720).optional(),
+  quoteFollowUpDays: z.coerce.number().int().min(0).max(60).optional(),
   complaintSlaHours: z.coerce.number().int().min(1).max(720).optional(),
   botGreetingEn: z.string().optional(),
   botGreetingAr: z.string().optional(),

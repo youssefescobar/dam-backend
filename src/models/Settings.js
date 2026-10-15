@@ -51,6 +51,8 @@ const settingsSchema = new mongoose.Schema(
         'Child and infant fares follow ticket and route policy from the booking system.',
     },
     quoteSlaHours: { type: Number, default: 24 },
+    /** Remind staff when a quoted lead has had no decision for this many days (0 = off). */
+    quoteFollowUpDays: { type: Number, default: 3 },
     complaintSlaHours: { type: Number, default: 48 },
     botGreetingEn: {
       type: String,
