@@ -288,7 +288,13 @@ router.patch('/:id', requireAuth, validateBody(patchQuoteSchema), async (req, re
       throw new HttpError(404, 'Quote not found');
     }
 
-    if (req.body.status !== undefined) quote.status = req.body.status;
+    if (req.body.status !== undefined) {
+      if (req.body.status === 'quoted' && quote.status !== 'quoted') {
+        quote.quotedAt = new Date();
+        quote.followUpRemindedAt = null;
+      }
+      quote.status = req.body.status;
+    }
     if (req.body.quotedPrice !== undefined) quote.quotedPrice = req.body.quotedPrice;
     if (req.body.notes !== undefined) quote.notes = req.body.notes;
     if (req.body.staffNotes !== undefined) quote.staffNotes = req.body.staffNotes;

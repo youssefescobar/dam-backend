@@ -206,6 +206,26 @@ describe('Quotes & Auth & KB (Phase 1)', () => {
       expect(res.body.quote.quotedPrice).toBe(120);
     });
 
+    it('stamps quotedAt when a quote is priced and clears an old follow-up reminder', async () => {
+      const created = await request(app).post('/quotes').send({
+        customerName: 'Ada',
+        customerContact: 'ada@example.com',
+        pickup: 'A',
+        dropoff: 'B',
+        date: '2026-10-01',
+        passengers: 2,
+      });
+      const id = created.body.quote._id;
+      await Quote.updateOne({ _id: id }, { followUpRemindedAt: new Date(0) });
+
+      const res = await request(app)
+        .patch(`/quotes/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ status: 'quoted', quotedPrice: 500 });
+      expect(res.body.quote.quotedAt).toBeTruthy();
+      expect(res.body.quote.followUpRemindedAt).toBeNull();
+    });
+
     it('keeps staff notes when the customer edits their request', async () => {
       const created = await request(app).post('/quotes').send({
         customerName: 'Ada',
