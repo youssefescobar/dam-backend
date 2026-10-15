@@ -1,5 +1,5 @@
 /**
- * Guided (menu) chat for Durri: canned answers + buttons, no LLM required.
+ * Guided (menu) chat for Durra AI: canned answers + buttons, no LLM required.
  * Everything customer-facing exists in English and Arabic; `lang` picks one.
  */
 
@@ -270,19 +270,23 @@ export function detectIntent(text) {
 
 /**
  * The old stock greetings were stored in the database as editable "defaults". If the
- * saved text is still one of those, ignore it so Durri's greeting shows without a manual
+ * saved text is still one of those, ignore it so Durra AI's greeting shows without a manual
  * Settings edit. Anything staff wrote themselves is kept.
  */
 const isLegacyGreeting = (text) =>
-  /Choose booking or quote, trip follow-up/i.test(text) || /يمكنك اختيار حجز أو عرض سعر، متابعة رحلة/.test(text);
+  /Choose booking or quote, trip follow-up/i.test(text) ||
+  /يمكنك اختيار حجز أو عرض سعر، متابعة رحلة/.test(text) ||
+  // Defaults from when the assistant was called Durri (renamed to Durra AI).
+  /^Hi, I[’']m Durri, the Durrah Al-Munawwara Transport assistant\./.test(text) ||
+  /^أهلاً بك، أنا دُرّي مساعد درة المنورة للنقل\./.test(text);
 
 export function greetingWelcome(settings, lang) {
   const ar = normalizeLang(lang) === 'ar';
   const saved = ar ? settings?.botGreetingAr : settings?.botGreetingEn;
   if (saved && !isLegacyGreeting(saved)) return saved;
   return ar
-    ? 'أهلاً بك، أنا دُرّي مساعد درة المنورة للنقل. كيف أستطيع مساعدتك؟ اختر موضوعاً من الأسفل أو اكتب سؤالك.'
-    : 'Hi, I’m Durri, the Durrah Al-Munawwara Transport assistant. How can I help? Pick a topic below or just type your question.';
+    ? 'أهلاً بك، أنا دُرّة AI، المساعدة الذكية لدرة المنورة للنقل. كيف أستطيع مساعدتك؟ اختر موضوعاً من الأسفل أو اكتب سؤالك.'
+    : 'Hi, I’m Durra AI, the Durrah Al-Munawwara Transport assistant. How can I help? Pick a topic below or just type your question.';
 }
 
 export function getWelcomePayload(settings, lang) {

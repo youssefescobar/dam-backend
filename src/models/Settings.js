@@ -57,12 +57,12 @@ const settingsSchema = new mongoose.Schema(
     botGreetingEn: {
       type: String,
       default:
-        'Hi, I’m Durri, the Durrah Al-Munawwara Transport assistant. How can I help? Pick a topic below or just type your question.',
+        'Hi, I’m Durra AI, the Durrah Al-Munawwara Transport assistant. How can I help? Pick a topic below or just type your question.',
     },
     botGreetingAr: {
       type: String,
       default:
-        'أهلاً بك، أنا دُرّي مساعد درة المنورة للنقل. كيف أستطيع مساعدتك؟ اختر موضوعاً من الأسفل أو اكتب سؤالك.',
+        'أهلاً بك، أنا دُرّة AI، المساعدة الذكية لدرة المنورة للنقل. كيف أستطيع مساعدتك؟ اختر موضوعاً من الأسفل أو اكتب سؤالك.',
     },
     /** Optional office-hours awareness; off by default (behaviour unchanged). */
     officeHoursEnabled: { type: Boolean, default: false },

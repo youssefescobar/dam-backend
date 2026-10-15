@@ -1,5 +1,5 @@
 /**
- * Step-by-step forms Durri walks a customer through (English + Arabic).
+ * Step-by-step forms Durra AI walks a customer through (English + Arabic).
  * Each answer is stored in conversation.flow.data[key]; the last step creates a Report.
  */
 

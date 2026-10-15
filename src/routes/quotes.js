@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { Quote } from '../models/Quote.js';
 import { findOrUpsertCustomer } from '../models/Customer.js';
 import { Conversation } from '../models/Conversation.js';
@@ -74,6 +75,7 @@ const patchQuoteSchema = z.object({
   status: z.enum(['new', 'quoted', 'won', 'lost']).optional(),
   quotedPrice: z.number().positive().optional().nullable(),
   notes: z.string().optional(),
+  staffNotes: z.string().max(4000).optional(),
   assignedDepartment: z
     .enum(['', 'sales', 'hajj', 'corporate', 'operations', 'support'])
     .optional(),
@@ -207,6 +209,62 @@ router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
   }
 });
 
+const digitsOf = (s) => String(s || '').replace(/\D/g, '');
+
+/** Per lead ID, so nobody can guess phone numbers for one request. */
+const trackLeadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  keyGenerator: (req) => `lead:${String(req.query.leadId || '').trim().toUpperCase()}`,
+});
+
+const trackSchema = z.object({
+  leadId: z.string().trim().regex(/^DM-[A-Z0-9]{4,20}$/i, 'leadId looks like DM-1A2B3C4D'),
+  phone: z.string().trim().min(6, 'phone is required').max(40),
+});
+
+/**
+ * Public status lookup for the website's "Track my request" page.
+ * Needs the lead ID plus the phone it was sent with; same 404 for either mismatch.
+ */
+router.get('/track', trackLeadLimiter, async (req, res, next) => {
+  try {
+    const parsed = trackSchema.safeParse(req.query);
+    if (!parsed.success) throw new HttpError(400, 'leadId and phone are required');
+    const { leadId, phone } = parsed.data;
+
+    const quote = await Quote.findOne({ leadId: leadId.toUpperCase() }).lean();
+    const given = digitsOf(phone);
+    const known = digitsOf(quote?.customerContact);
+    if (!quote || given.length < 6 || known.slice(-9) !== given.slice(-9)) {
+      throw new HttpError(404, 'Request not found');
+    }
+
+    const priced = quote.status === 'quoted' || quote.status === 'won';
+    res.json({
+      tracking: {
+        leadId: quote.leadId,
+        status: quote.status,
+        quotedPrice: priced ? quote.quotedPrice : null,
+        currency: 'SAR',
+        pickup: quote.pickup,
+        dropoff: quote.dropoff,
+        date: quote.date,
+        passengers: quote.passengers,
+        busCount: quote.busCount,
+        submittedAt: quote.createdAt,
+        updatedAt: quote.updatedAt,
+        editable: quote.status === 'new',
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const filter = {};
@@ -239,6 +297,7 @@ router.patch('/:id', requireAuth, validateBody(patchQuoteSchema), async (req, re
     }
     if (req.body.quotedPrice !== undefined) quote.quotedPrice = req.body.quotedPrice;
     if (req.body.notes !== undefined) quote.notes = req.body.notes;
+    if (req.body.staffNotes !== undefined) quote.staffNotes = req.body.staffNotes;
     if (req.body.assignedDepartment !== undefined) {
       quote.assignedDepartment = req.body.assignedDepartment;
     }
