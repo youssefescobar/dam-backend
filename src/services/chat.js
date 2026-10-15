@@ -65,6 +65,17 @@ export async function startChatSession(input) {
 
 const digitsOf = (s) => String(s || '').replace(/\D/g, '');
 
+/** True when `phone` matches the customer who owns the conversation (last 9 digits, like resume). */
+export async function customerOwnsConversation(conversationId, phone) {
+  if (!conversationId || !/^[a-f0-9]{24}$/i.test(String(conversationId))) return false;
+  const conversation = await Conversation.findById(conversationId).select('customerId').lean();
+  if (!conversation) return false;
+  const customer = await Customer.findById(conversation.customerId).select('phone').lean();
+  const given = digitsOf(phone);
+  const known = digitsOf(customer?.phone);
+  return Boolean(given && known && given.slice(-9) === known.slice(-9));
+}
+
 /**
  * Messages + state for resuming a chat after a page reload.
  * The caller must prove it knows the customer's phone number.

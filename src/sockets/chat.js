@@ -1,6 +1,6 @@
 import { Conversation, bumpConversationActivity } from '../models/Conversation.js';
 import { Message } from '../models/Message.js';
-import { handleChatMessage } from '../services/chat.js';
+import { customerOwnsConversation, handleChatMessage } from '../services/chat.js';
 import { logger } from '../utils/logger.js';
 import { socketAuthMiddleware, requireSocketAdmin } from './auth.js';
 
@@ -26,6 +26,28 @@ export async function countOnlineAdmins() {
   return io ? (await io.in('admin-queue').fetchSockets()).length : null;
 }
 
+const SOCKET_CHAT_WINDOW_MS = 60 * 1000;
+
+/** Same per-minute cap as the HTTP per-customer limiter, counted per socket. */
+function socketChatAllowed(socket) {
+  const max = Number(process.env.CHAT_CUSTOMER_MAX_PER_MIN) || 20;
+  const now = Date.now();
+  const hits = (socket.data.chatHits || []).filter((t) => now - t < SOCKET_CHAT_WINDOW_MS);
+  if (hits.length >= max) {
+    socket.data.chatHits = hits;
+    return false;
+  }
+  hits.push(now);
+  socket.data.chatHits = hits;
+  return true;
+}
+
+/** Admins may watch any conversation; customers must prove ownership with their phone. */
+async function mayJoinConversation(socket, conversationId, phone) {
+  if (socket.data.admin) return true;
+  return customerOwnsConversation(conversationId, phone);
+}
+
 export function emitToConversation(conversationId, event, payload) {
   if (io) {
     io.to(`conversation:${conversationId}`).emit(event, payload);
@@ -43,9 +65,11 @@ export function initChatSockets(serverIo) {
   serverIo.on('connection', (socket) => {
     logger.info({ id: socket.id, admin: Boolean(socket.data.admin) }, 'socket connected');
 
-    socket.on('join:conversation', async ({ conversationId } = {}) => {
+    socket.on('join:conversation', async ({ conversationId, phone } = {}, ack) => {
       if (!conversationId) return;
-      await socket.join(`conversation:${conversationId}`);
+      const ok = await mayJoinConversation(socket, String(conversationId), phone).catch(() => false);
+      if (ok) await socket.join(`conversation:${conversationId}`);
+      if (typeof ack === 'function') ack({ ok });
     });
 
     socket.on('join:admin-queue', async (_payload, ack) => {
@@ -60,9 +84,18 @@ export function initChatSockets(serverIo) {
 
     socket.on('chat:message', async (payload = {}, ack) => {
       try {
+        if (!socketChatAllowed(socket)) {
+          throw new Error('Too many messages, please slow down');
+        }
         // Join first so the room broadcasts from handleChatMessage reach this socket
         // (previously the reply was emitted twice: once to the room, once directly).
         if (payload.conversationId) {
+          const owns = await mayJoinConversation(
+            socket,
+            String(payload.conversationId),
+            payload.customerPhone
+          );
+          if (!owns) throw new Error('Conversation not found');
           await socket.join(`conversation:${payload.conversationId}`);
         }
 

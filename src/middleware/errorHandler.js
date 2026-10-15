@@ -1,4 +1,8 @@
 export function errorHandler(err, _req, res, _next) {
+  // A malformed :id (e.g. /quotes/abc) is a missing record, not a server fault.
+  if (err.name === 'CastError' && err.kind === 'ObjectId') {
+    return res.status(404).json({ error: 'Not found' });
+  }
   const status = err.status || err.statusCode || 500;
   const payload = {
     error: err.message || 'Internal Server Error',

@@ -119,6 +119,17 @@ const quoteFields = (data) => ({
   priority: data.priority || 'normal',
 });
 
+/** Customer-facing "your quote is priced" line, in SAR and the customer's language. */
+export function pricedMessage(quote) {
+  const ref = quote.leadId ? ` ${quote.leadId}` : '';
+  if (quote.language === 'ar') {
+    const amount = new Intl.NumberFormat('ar-SA', { maximumFractionDigits: 2 }).format(quote.quotedPrice);
+    return `تم تسعير طلبك${ref} بمبلغ ${amount} ريال سعودي. سيتواصل معك فريقنا إذا كان لديك أي استفسار.`;
+  }
+  const amount = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(quote.quotedPrice);
+  return `Your quote${ref} has been priced at SAR ${amount}. Our team will follow up if you have questions.`;
+}
+
 const router = Router();
 
 router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
@@ -241,10 +252,11 @@ router.patch('/:id', requireAuth, validateBody(patchQuoteSchema), async (req, re
     await quote.save();
 
     if (quote.status === 'quoted' && quote.quotedPrice != null && quote.conversationId) {
-      await Message.create({
+      const text = pricedMessage(quote);
+      const message = await Message.create({
         conversationId: quote.conversationId,
         sender: 'system',
-        text: `Your quote has been priced at ${quote.quotedPrice}. Our team will follow up if you have questions.`,
+        text,
       });
 
       const { emitToConversation } = await import('../sockets/chat.js').catch(() => ({
@@ -253,7 +265,8 @@ router.patch('/:id', requireAuth, validateBody(patchQuoteSchema), async (req, re
       if (typeof emitToConversation === 'function') {
         emitToConversation(quote.conversationId.toString(), 'message:new', {
           sender: 'system',
-          text: `Your quote has been priced at ${quote.quotedPrice}.`,
+          text,
+          messageId: message._id.toString(),
         });
       }
     }

@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { errorHandler } from './middleware/errorHandler.js';
 import { resolveCorsOrigin } from './config/corsOrigins.js';
+import { trustProxySetting } from './middleware/clientKey.js';
 import healthRouter from './routes/health.js';
 import authRouter from './routes/auth.js';
 import quotesRouter from './routes/quotes.js';
@@ -20,6 +21,7 @@ import insightsRouter from './routes/insights.js';
  */
 export function createApp(options = {}) {
   const app = express();
+  app.set('trust proxy', trustProxySetting());
 
   app.use(
     helmet({
