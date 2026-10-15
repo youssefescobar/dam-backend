@@ -30,6 +30,8 @@ const quoteSchema = new mongoose.Schema(
     vehicleType: { type: String, required: true, trim: true },
     passengers: { type: Number, required: true, min: 1 },
     notes: { type: String, default: '' },
+    /** Staff-only notes; kept apart from `notes` so customer edits never wipe them. */
+    staffNotes: { type: String, default: '' },
     status: {
       type: String,
       enum: ['new', 'quoted', 'won', 'lost'],

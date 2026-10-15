@@ -74,6 +74,7 @@ const patchQuoteSchema = z.object({
   status: z.enum(['new', 'quoted', 'won', 'lost']).optional(),
   quotedPrice: z.number().positive().optional().nullable(),
   notes: z.string().optional(),
+  staffNotes: z.string().max(4000).optional(),
   assignedDepartment: z
     .enum(['', 'sales', 'hajj', 'corporate', 'operations', 'support'])
     .optional(),
@@ -233,6 +234,7 @@ router.patch('/:id', requireAuth, validateBody(patchQuoteSchema), async (req, re
     if (req.body.status !== undefined) quote.status = req.body.status;
     if (req.body.quotedPrice !== undefined) quote.quotedPrice = req.body.quotedPrice;
     if (req.body.notes !== undefined) quote.notes = req.body.notes;
+    if (req.body.staffNotes !== undefined) quote.staffNotes = req.body.staffNotes;
     if (req.body.assignedDepartment !== undefined) {
       quote.assignedDepartment = req.body.assignedDepartment;
     }
