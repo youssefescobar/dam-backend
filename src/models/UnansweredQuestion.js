@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-/** A customer question Durri could not answer; one row per distinct question + language. */
+/** A customer question Durra AI could not answer; one row per distinct question + language. */
 const unansweredQuestionSchema = new mongoose.Schema(
   {
     /** Lower-cased, whitespace-collapsed text used to group repeats. */

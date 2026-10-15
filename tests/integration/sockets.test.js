@@ -91,7 +91,7 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     const client = ioc(baseUrl, { transports: ['websocket'], forceNew: true });
     await waitFor(client, 'connect');
 
-    // The customer's own message is echoed to the room too; wait for Durri's reply.
+    // The customer's own message is echoed to the room too; wait for Durra AI's reply.
     const replyPromise = new Promise((resolve) => {
       client.on('message:new', (p) => {
         if (p.sender === 'ai') resolve(p);

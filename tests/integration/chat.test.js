@@ -220,7 +220,7 @@ describe('POST /chat/session & /chat/message', () => {
     const session = await openSession(app, { lang: 'ar' });
 
     const welcome = await request(app).get('/chat/guided?lang=ar');
-    expect(welcome.body.answer).toMatch(/دُرّي/);
+    expect(welcome.body.answer).toMatch(/دُرّة AI/);
     expect(welcome.body.options[0].label).toMatch(/[\u0600-\u06FF]/);
 
     const res = await request(app).post('/chat/message').send({
@@ -342,17 +342,33 @@ describe('POST /chat/session & /chat/message', () => {
     expect(unknown.body.options.length).toBeGreaterThan(3);
   });
 
-  it('ignores the old stock greeting stored in settings so Durri introduces itself', async () => {
+  it('ignores the old stock greeting stored in settings so Durra AI introduces itself', async () => {
     await Settings.create({
       _id: 'company',
       botGreetingEn:
         'Welcome to Durrah Al-Munawwara Transport. How can I help? Choose booking or quote, trip follow-up, Hajj & Umrah, corporate transport, international, complaint or lost items, or talk to an agent.',
       botGreetingAr: 'أهلاً بك في درة المنورة للنقل. كيف أستطيع مساعدتك؟ يمكنك اختيار حجز أو عرض سعر، متابعة رحلة، الحج والعمرة، نقل الشركات، النقل الدولي، شكوى أو مفقودات، أو التحدث مع موظف.',
     });
-    expect((await request(app).get('/chat/guided?lang=en')).body.answer).toMatch(/Durri/);
-    expect((await request(app).get('/chat/guided?lang=ar')).body.answer).toMatch(/دُرّي/);
+    expect((await request(app).get('/chat/guided?lang=en')).body.answer).toMatch(/Durra AI/);
+    expect((await request(app).get('/chat/guided?lang=ar')).body.answer).toMatch(/دُرّة AI/);
 
     await Settings.updateOne({ _id: 'company' }, { botGreetingEn: 'Custom hello from the team.' });
     expect((await request(app).get('/chat/guided?lang=en')).body.answer).toBe('Custom hello from the team.');
+  });
+
+  it('replaces a saved greeting that still uses the old name Durri', async () => {
+    await Settings.create({
+      _id: 'company',
+      botGreetingEn:
+        'Hi, I’m Durri, the Durrah Al-Munawwara Transport assistant. How can I help? Pick a topic below or just type your question.',
+      botGreetingAr:
+        'أهلاً بك، أنا دُرّي مساعد درة المنورة للنقل. كيف أستطيع مساعدتك؟ اختر موضوعاً من الأسفل أو اكتب سؤالك.',
+    });
+    const en = (await request(app).get('/chat/guided?lang=en')).body.answer;
+    const ar = (await request(app).get('/chat/guided?lang=ar')).body.answer;
+    expect(en).toMatch(/Durra AI/);
+    expect(en).not.toMatch(/Durri/);
+    expect(ar).toMatch(/دُرّة AI/);
+    expect(ar).not.toMatch(/دُرّي/);
   });
 });
