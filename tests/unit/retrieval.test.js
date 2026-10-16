@@ -119,5 +119,6 @@ describe('language + intent helpers', () => {
     expect(looksLikeEscalate('  escalate.')).toBe(true);
     expect(looksLikeEscalate("I don't know")).toBe(false);
     expect(looksLikeEscalate('We do not escalate fares')).toBe(false);
+    expect(looksLikeEscalate('I am very sorry to hear about this delay. ESCALATE')).toBe(true);
   });
 });

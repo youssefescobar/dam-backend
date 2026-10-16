@@ -172,9 +172,10 @@ export function looksLikeDontKnow(answer) {
   );
 }
 
-/** The model answers exactly "ESCALATE" when a person must take over right now. */
+/** The model answers "ESCALATE" when a person must take over; it sometimes puts it after an apology. */
 export function looksLikeEscalate(answer) {
-  return /^\W*ESCALATE\b/i.test(String(answer || '').trim());
+  const t = String(answer || '').trim();
+  return /^\W*ESCALATE\b/i.test(t) || /\bESCALATE\W*$/.test(t);
 }
 
 // Arabic: a talk/transfer verb followed by a *staff* noun. Bare "شخص" (= "person" in
