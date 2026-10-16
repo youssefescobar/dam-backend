@@ -116,7 +116,9 @@ async function callGemini({ question, context, history, lang }) {
 
   for (const model of resolveGeminiModels()) {
     try {
+      const started = Date.now();
       const answer = await callGeminiModel(key, model, system, contents);
+      logger.info({ model, ms: Date.now() - started }, 'Gemini answered');
       return { answer, model };
     } catch (err) {
       logger.warn({ model, err: err.message }, 'Gemini model failed');
@@ -174,7 +176,7 @@ export function looksLikeDontKnow(answer) {
 
 // "Hello! I am Durra AI, your virtual assistant." The chat window already greets the customer.
 const INTRO_RE =
-  /^\s*((hello|hi|welcome)[!,.]?\s*)?(i am|i'm|i’m) (durra|an ai assistant)[^.!?]*[.!?]\s*|^\s*(أهلا[ًا]?( بك| وسهلا)?[،,.!]?\s*)?(أنا|انا|معك) درة[^.!؟]*[.!؟]\s*/i;
+  /^\s*((hello|hi|welcome|greetings)( and welcome| there)?[!,.]?\s*)?(i am|i'm|i’m) (durra|an ai assistant)[^.!?]*[.!?]\s*|^\s*(أهلا[ًا]?( بك| وسهلا)?[،,.!]?\s*)?(أنا|انا|معك) درة[^.!؟]*[.!؟]\s*/i;
 
 /** Drop the model's self-introduction, unless the customer asked who or what Durra is. */
 export function stripIntro(answer, question = '') {

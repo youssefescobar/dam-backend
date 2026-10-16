@@ -129,5 +129,6 @@ describe('language + intent helpers', () => {
     expect(stripIntro('I am Durra AI, the assistant.')).toBe('I am Durra AI, the assistant.');
     expect(stripIntro('I am Durra AI. How can I help?', 'Are you a real person or a bot?')).toBe('I am Durra AI. How can I help?');
     expect(stripIntro('Yes, we run buses.')).toBe('Yes, we run buses.');
+    expect(stripIntro('Hello and welcome! I am Durra AI, your assistant. Yes, we do.')).toBe('Yes, we do.');
   });
 });
