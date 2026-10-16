@@ -11,7 +11,7 @@ import {
   classifyChitchat,
 } from './llm.js';
 import { notifyAdmins, notifyAdmin } from './push.js';
-import { countOnlineAdmins, emitToAdminQueue, emitToConversation } from '../sockets/chat.js';
+import { emitToAdminQueue, emitToConversation } from '../sockets/chat.js';
 import {
   EXTRA_OPTIONS,
   ALL_TOPIC_OPTIONS,
@@ -549,7 +549,7 @@ async function alertAssignedAdmin(conversation, text) {
   }).catch(() => {});
 }
 
-/** Extra handover line: team offline (outside office hours) or nobody online to pick it up. */
+/** Extra handover line when outside office hours (off unless office hours are enabled). */
 export async function availabilityNote(lang, now = new Date()) {
   let settings = null;
   try {
@@ -557,11 +557,9 @@ export async function availabilityNote(lang, now = new Date()) {
   } catch {
     return '';
   }
-  if (!isOpenNow(settings, now)) {
-    const when = nextOpeningText(settings, lang, now);
-    return when ? pickText(REPLIES.offlineHours, lang).replace('{when}', when) : '';
-  }
-  return (await countOnlineAdmins()) === 0 ? pickText(REPLIES.offlineQueued, lang) : '';
+  if (isOpenNow(settings, now)) return '';
+  const when = nextOpeningText(settings, lang, now);
+  return when ? pickText(REPLIES.offlineHours, lang).replace('{when}', when) : '';
 }
 
 async function escalate(conversation, reason, detail, lang = 'en') {

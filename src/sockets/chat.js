@@ -21,11 +21,6 @@ export function emitToAdminQueue(event, payload) {
   }
 }
 
-/** Agents currently connected to the admin queue, or null when sockets are not running. */
-export async function countOnlineAdmins() {
-  return io ? (await io.in('admin-queue').fetchSockets()).length : null;
-}
-
 const SOCKET_CHAT_WINDOW_MS = 60 * 1000;
 
 /** Same per-minute cap as the HTTP per-customer limiter, counted per socket. */

@@ -395,15 +395,11 @@ export const REPLIES = {
     en: 'A teammate is already on the way. You can keep typing here and they will see everything.',
     ar: 'أحد أعضاء الفريق في الطريق إليك. يمكنك الاستمرار بالكتابة هنا وسيطّلع على كل شيء.',
   },
-  // Office-hours / queue notices appended to the handover message.
+  // Office-hours notice appended to the handover message.
   // TODO(native review): Arabic wording below is simple on purpose; have a native speaker check it.
   offlineHours: {
     en: 'Our team is offline right now, so a reply may take a while. They will be back {when}.',
     ar: 'فريقنا غير متواجد الآن، وقد يتأخر الرد. سيعودون {when}.',
-  },
-  offlineQueued: {
-    en: 'No one is online at the moment. Your message is saved and the first available teammate will reply.',
-    ar: 'لا يوجد أحد متصل حالياً. رسالتك محفوظة وسيرد عليك أول موظف متاح.',
   },
   closedByAdmin: {
     en: 'This chat was closed by our team. Send a message anytime to start again.',
