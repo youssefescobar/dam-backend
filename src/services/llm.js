@@ -139,6 +139,8 @@ async function callGeminiModel(key, model, system, contents) {
       generationConfig: {
         temperature: 0.3,
         maxOutputTokens: 450,
+        // FAQ chat needs no reasoning; thinking adds seconds and eats the output budget.
+        thinkingConfig: { thinkingLevel: 'minimal' },
       },
     }),
     signal: AbortSignal.timeout(30000),
