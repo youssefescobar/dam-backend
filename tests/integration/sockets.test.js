@@ -100,6 +100,7 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     client.emit('chat:message', {
       text: 'Do you operate on Friday evenings?',
       conversationId: conversation._id.toString(),
+      customerPhone: '+15555551001',
     });
 
     const reply = await replyPromise;
@@ -135,6 +136,7 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     customer.emit('chat:message', {
       text: 'talk to a human',
       conversationId: conversation._id.toString(),
+      customerPhone: '+15555551002',
     });
 
     const event = await escalatedPromise;
@@ -249,6 +251,7 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     customer.emit('chat:message', {
       text: 'Are you still there?',
       conversationId: conversation._id.toString(),
+      customerPhone: '+15555551004',
     });
 
     const alert = await alertPromise;
@@ -287,6 +290,7 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
         {
           text: 'Hello again',
           conversationId: conversation._id.toString(),
+          customerPhone: '+15555551005',
         },
         (response) => resolve(response)
       );
@@ -295,6 +299,29 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     expect(ack.ok).toBe(true);
     expect(ack.status).toBe('ai_handling');
 
+    client.close();
+  });
+  it('refuses to join a conversation without the owner phone', async () => {
+    const { conversation } = await session({ email: 'priv@test.com', phone: '+15555551010' });
+    const id = conversation._id.toString();
+    const client = ioc(baseUrl, { transports: ['websocket'], forceNew: true });
+    await waitFor(client, 'connect');
+
+    const denied = await new Promise((r) => client.emit('join:conversation', { conversationId: id }, r));
+    expect(denied.ok).toBe(false);
+    const wrong = await new Promise((r) =>
+      client.emit('join:conversation', { conversationId: id, phone: '+15550000000' }, r)
+    );
+    expect(wrong.ok).toBe(false);
+    const allowed = await new Promise((r) =>
+      client.emit('join:conversation', { conversationId: id, phone: '555-555-1010' }, r)
+    );
+    expect(allowed.ok).toBe(true);
+
+    const ack = await new Promise((r) =>
+      client.emit('chat:message', { text: 'hi', conversationId: id, customerPhone: '+15550000000' }, r)
+    );
+    expect(ack.ok).toBe(false);
     client.close();
   });
 });

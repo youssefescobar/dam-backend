@@ -85,6 +85,7 @@ async function autoCloseConversation(conversation) {
     messageId: notice._id.toString(),
     conversationId,
   });
+  emitToConversation(conversationId, 'conversation:closed', { conversationId, reason: 'inactivity' });
   emitToAdminQueue('conversation:closed', {
     conversationId,
     reason: 'inactivity',

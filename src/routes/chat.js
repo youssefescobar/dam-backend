@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Router } from 'express';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
+import { clientRateKey } from '../middleware/clientKey.js';
 import { validateBody } from '../middleware/validate.js';
 import { getConversationForResume, handleChatMessage, startChatSession } from '../services/chat.js';
 import { REPLIES, getWelcomePayload, menuOptions, normalizeLang, pickText } from '../config/guidedChat.js';
@@ -39,6 +40,7 @@ const chatLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
+  keyGenerator: clientRateKey,
 });
 
 /** Per-customer cap on top of the per-IP one (shared Wi-Fi shouldn't throttle everyone, one chat shouldn't flood). */
@@ -51,7 +53,7 @@ const customerLimiter = rateLimit({
   keyGenerator: (req) => {
     const b = req.body || {};
     const phone = String(b.customerPhone || '').replace(/\D/g, '');
-    return b.conversationId ? `c:${b.conversationId}` : phone ? `p:${phone}` : ipKeyGenerator(req.ip);
+    return b.conversationId ? `c:${b.conversationId}` : phone ? `p:${phone}` : clientRateKey(req);
   },
   handler: (req, res) => {
     const lang = normalizeLang(req.body?.lang);

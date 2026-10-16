@@ -5,6 +5,7 @@ import { createApp } from '../../src/app.js';
 import { startTestDb, stopTestDb, clearDb } from '../helpers/db.js';
 import { Admin } from '../../src/models/Admin.js';
 import { Quote } from '../../src/models/Quote.js';
+import { Message } from '../../src/models/Message.js';
 import { KnowledgeBaseEntry } from '../../src/models/KnowledgeBaseEntry.js';
 
 describe('Quotes & Auth & KB (Phase 1)', () => {
@@ -204,6 +205,35 @@ describe('Quotes & Auth & KB (Phase 1)', () => {
       expect(res.status).toBe(200);
       expect(res.body.quote.status).toBe('quoted');
       expect(res.body.quote.quotedPrice).toBe(120);
+    });
+
+    it('tells the customer the price in SAR and their language', async () => {
+      const created = await request(app).post('/quotes').send({
+        customerName: 'Huda',
+        customerContact: '+966500000001',
+        pickup: 'Makkah',
+        dropoff: 'Madinah',
+        date: '2026-10-01',
+        passengers: 40,
+        language: 'ar',
+      });
+
+      await request(app)
+        .patch(`/quotes/${created.body.quote._id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ status: 'quoted', quotedPrice: 12500 });
+
+      const msg = await Message.findOne({ conversationId: created.body.conversationId, sender: 'system' });
+      expect(msg.text).toContain('ريال سعودي');
+      expect(msg.text).toContain(created.body.leadId);
+    });
+
+    it('returns 404, not 500, for a malformed id', async () => {
+      const res = await request(app)
+        .patch('/quotes/not-an-id')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ status: 'won' });
+      expect(res.status).toBe(404);
     });
 
     it('stamps quotedAt when a quote is priced and clears an old follow-up reminder', async () => {
