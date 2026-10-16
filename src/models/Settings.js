@@ -51,16 +51,18 @@ const settingsSchema = new mongoose.Schema(
         'Child and infant fares follow ticket and route policy from the booking system.',
     },
     quoteSlaHours: { type: Number, default: 24 },
+    /** Remind staff when a quoted lead has had no decision for this many days (0 = off). */
+    quoteFollowUpDays: { type: Number, default: 3 },
     complaintSlaHours: { type: Number, default: 48 },
     botGreetingEn: {
       type: String,
       default:
-        'Hi, I’m Durri, the Durrah Al-Munawwara Transport assistant. How can I help? Pick a topic below or just type your question.',
+        'Hi, I’m Durra AI, the Durrah Al-Munawwara Transport assistant. How can I help? Pick a topic below or just type your question.',
     },
     botGreetingAr: {
       type: String,
       default:
-        'أهلاً بك، أنا دُرّي مساعد درة المنورة للنقل. كيف أستطيع مساعدتك؟ اختر موضوعاً من الأسفل أو اكتب سؤالك.',
+        'أهلاً بك، أنا دُرّة AI، المساعدة الذكية لدرة المنورة للنقل. كيف أستطيع مساعدتك؟ اختر موضوعاً من الأسفل أو اكتب سؤالك.',
     },
     /** Optional office-hours awareness; off by default (behaviour unchanged). */
     officeHoursEnabled: { type: Boolean, default: false },

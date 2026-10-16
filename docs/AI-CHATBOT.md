@@ -1,6 +1,6 @@
-# Durri — the AI chatbot
+# Durra AI — the AI chatbot
 
-Durri (دُرّي) is the virtual assistant of Durrah Al-Munawwara Transport. It lives in a chat widget on the website (Arabic and English), answers from the company knowledge base, walks customers through complaint / lost-item forms, points them to the quote page, and hands over to a human agent whenever it should.
+Durra AI (دُرّة) is the virtual assistant of Durrah Al-Munawwara Transport. It lives in a chat widget on the website (Arabic and English), answers from the company knowledge base, walks customers through complaint / lost-item forms, points them to the quote page, and hands over to a human agent whenever it should.
 
 This document explains how the whole thing works end to end: what happens to a message, where each piece lives, how to change it, and how to run and test it.
 
@@ -34,7 +34,7 @@ This document explains how the whole thing works end to end: what happens to a m
 | Free questions | Retrieval over the FAQ + Gemini, with short conversation memory. Answers only from the FAQ. |
 | Quote | Sends customers to the quote page (`/quote`) with an "Open the quote form" button. |
 | Complaints / lost items | Step-by-step form in chat → a `Report` with a reference number (`CMP-…` / `LF-…`) and an SLA. |
-| Human handover | Immediate for safety/fraud/“talk to a person”; gentle offer when Durri is unsure; automatic after 3 misses in a row. |
+| Human handover | Immediate for safety/fraud/“talk to a person”; gentle offer when Durra AI is unsure; automatic after 3 misses in a row. |
 | Staff tools | Admin Inbox (claim + reply live), Reports page, Knowledge page, Settings, push notifications. |
 | Resilience | If Gemini fails the menu still works; if the user reloads the page the chat is restored. |
 
@@ -80,7 +80,7 @@ flowchart LR
 | Backend | `src/services/chat.js` | The message pipeline, forms, escalation, replies, resume. |
 | | `src/config/guidedChat.js` | Menu, node answers (EN/AR), intent shortcuts, language detection, canned system replies, greeting. |
 | | `src/config/guidedForms.js` | Complaint and lost-item steps (EN/AR), skip/cancel words, reference numbers, thank-you text. |
-| | `src/services/llm.js` | Durri persona prompt, Gemini calls, conversation memory, “don't know” / `ESCALATE` detection, human-request, safety and chit-chat classifiers. |
+| | `src/services/llm.js` | Durra AI persona prompt, Gemini calls, conversation memory, “don't know” / `ESCALATE` detection, human-request, safety and chit-chat classifiers. |
 | | `src/services/faqPrompt.js` | Loads FAQ rows, Arabic-aware tokenizer, relevance ranking, prompt formatting. |
 | | `src/routes/chat.js` | `/chat/*` HTTP endpoints, validation, rate limit. |
 | | `src/sockets/chat.js` | Socket.io: customer rooms, admin queue, claim/reply. |
@@ -93,7 +93,7 @@ flowchart LR
 | | `src/app/chat/[...path]/route.ts` | Same-origin proxy to the backend (avoids CORS). |
 | Admin | `src/features/chat/inbox-page.tsx` | Live inbox. |
 | | `src/features/reports/reports-page.tsx` | Complaints & lost items. |
-| | `src/features/ai/ai-playground-page.tsx` | “Durri chat” — try the customer experience. |
+| | `src/features/ai/ai-playground-page.tsx` | “Durra AI chat” — try the customer experience. |
 | | `src/features/kb`, `src/features/settings` | Knowledge base and company settings. |
 
 ---
@@ -138,7 +138,7 @@ Details worth knowing:
 1. **Validation.** Needs either text or a known `choiceId`. `open_quote` (a link button) is mapped to the quote answer; any other unknown id with no text shows the main menu. Never a 400 for a stale button.
 2. **A person is already handling it.** If the chat is `claimed`, the AI stays silent and the assigned agent gets a push + socket alert. If it is `needs_human` and unclaimed, the customer gets “a teammate is on the way”. The customer's message is still saved for the agent.
 3. **Order matters on purpose.** Safety and “talk to a human” run **before** forms and shortcuts, so a complaint description that mentions an accident escalates instead of being filed as text.
-4. **Memory.** The model sees the last ~8 turns (customer, Durri and staff messages; system notices are skipped).
+4. **Memory.** The model sees the last ~8 turns (customer, Durra AI and staff messages; system notices are skipped).
 5. **Reply delay.** Replies wait 350–700 ms so the typing indicator feels natural (`CHAT_REPLY_DELAY_MS` overrides; `0` in tests).
 
 ### Reply reasons
@@ -193,7 +193,7 @@ Greetings, thanks and goodbyes in both languages get a canned reply (`classifyCh
 
 ### Greeting
 
-`greetingWelcome()` uses `Settings.botGreetingEn/Ar` **unless** it is the old stock text (“Choose booking or quote, trip follow-up…”), in which case Durri's built-in greeting is used. Anything staff wrote themselves is kept.
+`greetingWelcome()` uses `Settings.botGreetingEn/Ar` **unless** it is the old stock text (“Choose booking or quote, trip follow-up…”), in which case Durra AI's built-in greeting is used. Anything staff wrote themselves is kept.
 
 ---
 
@@ -224,7 +224,7 @@ Admin side: `GET /reports?type=&status=` and `PATCH /reports/:id` (`new` → `in
 
 ### Persona and rules (`SYSTEM_PROMPT` in `llm.js`)
 
-Durri is a friendly, concise assistant (1–3 short sentences, no markdown or emojis, at most one follow-up question). Hard rules:
+Durra AI is a friendly, concise assistant (1–3 short sentences, no markdown or emojis, at most one follow-up question). Hard rules:
 
 - Answer **only** from the FAQ and what the customer said in this chat.
 - Never invent prices, schedules, availability, licences, compensation, policies, refund/cancel percentages.
@@ -244,13 +244,13 @@ The model answers with an exact word the server acts on:
 
 ### Miss streak
 
-`Conversation.unsureStreak` counts consecutive unanswered turns. Good answers and menu answers reset it. At **3**, Durri hands over (`model_uncertain`). Until then the customer gets: *“I couldn't find a confirmed answer… I can connect you with our team, or pick a topic”* with **Talk to a human**, **Contact us** and the menu.
+`Conversation.unsureStreak` counts consecutive unanswered turns. Good answers and menu answers reset it. At **3**, Durra AI hands over (`model_uncertain`). Until then the customer gets: *“I couldn't find a confirmed answer… I can connect you with our team, or pick a topic”* with **Talk to a human**, **Contact us** and the menu.
 
 ### Calling Gemini
 
 - Models: `GEMINI_MODEL` (default `gemini-3.1-flash-lite`), fallback `gemini-3.5-flash-lite`. A 401/403/429 stops the fallback chain.
 - Request: `systemInstruction` = persona + language note + relevant FAQ; `contents` = alternating user/model turns; temperature 0.3; up to 450 output tokens; 30 s timeout; API key sent in the `x-goog-api-key` header.
-- On failure Durri says it is “a bit stuck” and shows the menu (`llm_failure`). The conversation is **not** locked or escalated.
+- On failure Durra AI says it is “a bit stuck” and shows the menu (`llm_failure`). The conversation is **not** locked or escalated.
 
 ### Retrieval (`selectRelevantEntries`)
 
@@ -272,8 +272,8 @@ Up to 200 FAQ rows are loaded; if there are more than 30 only the most relevant 
 | `content` | The approved answer. Plain text. |
 | `locale` | `en` or `ar`. Write both languages for important topics. |
 | `intent`, `category` | Searchable tags (also used by retrieval). |
-| `escalate` | `true` → Durri never answers; the system hands over to staff. Use for accidents, fraud, sensitive data. |
-| `requiresLiveData` | `true` → Durri says the team will confirm from current data (prices, availability). |
+| `escalate` | `true` → Durra AI never answers; the system hands over to staff. Use for accidents, fraud, sensitive data. |
+| `requiresLiveData` | `true` → Durra AI says the team will confirm from current data (prices, availability). |
 | `sourceId` | Stable id for CSV re-imports (upsert). |
 
 Manage it in the admin **Knowledge** page, via `POST /kb/import` (CSV/JSON), or `npm run seed:kb` (`data/kb-info-full.csv` + `.ar.csv`; `KB_REPLACE_ALL=1` wipes first).
@@ -359,7 +359,7 @@ Only `name` and `phone` are required to chat; `email` is optional.
 - **Launcher:** the robot button (bottom corner). Hidden on `/quote`, where it would overlap the wizard buttons.
 - **Identity form:** name + phone, saved locally. “Change details” and “New chat” clear the stored conversation.
 - **Open:** restore the previous chat if the server still has it; otherwise start a session and show the localised welcome + menu.
-- **Messages:** assistant bubbles show Durri's avatar; text auto-aligns (`dir="auto"`), keeps line breaks and linkifies `https://` URLs. A typing indicator shows while waiting.
+- **Messages:** assistant bubbles show Durra AI's avatar; text auto-aligns (`dir="auto"`), keeps line breaks and linkifies `https://` URLs. A typing indicator shows while waiting.
 - **Buttons:** after the first exchange only the top topics show, with a **More topics** toggle. Link buttons (e.g. quote form) are orange and navigate in-app.
 - **Errors:** if a send fails, the typed text and the buttons come back so nothing is lost.
 - **Accessibility:** message list is `role="log"` / `aria-live="polite"`; Esc closes; the composer only auto-focuses on devices with a mouse (so phones don't pop the keyboard).
@@ -369,12 +369,12 @@ Only `name` and `phone` are required to chat; `email` is optional.
 
 ## 14. Admin panel (dam-admin)
 
-- **Inbox:** live list of waiting/claimed/closed chats; claim, reply, close. Each bubble is labelled Customer / Durri / Agent / System.
+- **Inbox:** live list of waiting/claimed/closed chats; claim, reply, close. Each bubble is labelled Customer / Durra AI / Agent / System.
 - **Reports:** complaints and lost items with status, SLA overdue flag, a link to the chat, and live toasts.
 - **Knowledge:** add/edit/import FAQ rows; warns when an entry (same source ID) has no Arabic/English twin.
 - **Insights:** analytics card and the unanswered-questions list.
-- **Settings:** company details, hours, WhatsApp, SLAs, and the Durri greetings (EN/AR).
-- **Durri chat:** a playground that uses the real customer endpoints — handy for testing prompts and the KB.
+- **Settings:** company details, hours, WhatsApp, SLAs, and the Durra AI greetings (EN/AR).
+- **Durra AI chat:** a playground that uses the real customer endpoints — handy for testing prompts and the KB.
 - **Push notifications:** new quote, new report, chat waiting, customer replied to my claimed chat.
 
 ---
@@ -386,7 +386,7 @@ Backend (`.env`):
 | Variable | Purpose |
 |---|---|
 | `MONGO_URI`, `JWT_SECRET`, `PORT`, `CORS_ORIGIN` | Core server. |
-| `GEMINI_API_KEY` | Enables the AI answers. Without it Durri still serves the menu, forms and shortcuts. |
+| `GEMINI_API_KEY` | Enables the AI answers. Without it Durra AI still serves the menu, forms and shortcuts. |
 | `GEMINI_MODEL` | Override the default model. |
 | `CHAT_REPLY_DELAY_MS` | Artificial reply delay (default random 350–700). |
 | `CHAT_AI_IDLE_MS`, `CHAT_NEEDS_HUMAN_IDLE_MS`, `CHAT_CLAIMED_IDLE_MS` | Idle auto-close windows. |
@@ -423,7 +423,7 @@ To try it for real: run the backend with a Mongo URI and `GEMINI_API_KEY`, run t
 1. Add `{ id, label, labelAr }` to `MAIN_MENU_OPTIONS` (order = display order).
 2. Add a node in `GUIDED_NODES` with `answer: { en, ar }`, `options: 'main'`, and `extra: ['open_quote']` if it should offer the quote button.
 
-**Change what Durri says or how it behaves**
+**Change what Durra AI says or how it behaves**
 - Persona and hard rules: `SYSTEM_PROMPT` in `llm.js`.
 - Canned system lines (not sure, handover, thanks…): `REPLIES` in `guidedChat.js`.
 - Greeting: Settings page (or the default in `greetingWelcome`).
@@ -443,7 +443,7 @@ To try it for real: run the backend with a Mongo URI and `GEMINI_API_KEY`, run t
 ## 18. Known limits
 
 - No photo/file upload in chat (customers are told to use WhatsApp).
-- Durri only knows what is in the FAQ and Settings — it has no live fares, schedules or booking data, so it routes those to the quote form or a person.
+- Durra AI only knows what is in the FAQ and Settings — it has no live fares, schedules or booking data, so it routes those to the quote form or a person.
 - Guided answers are fixed text; update them in code (or move them to the database if staff need to edit them).
 - Language detection is script-based (Arabic vs Latin) and needs at least 3 letters.
 - Rate limiting covers HTTP only (per IP, plus per conversation/phone); the socket `chat:message` path is not limited. No satisfaction rating yet.

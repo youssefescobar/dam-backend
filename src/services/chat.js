@@ -350,7 +350,7 @@ async function logMiss(conversation, question, lang, reason) {
   }
 }
 
-/** Last few turns for the LLM (customer + Durri + staff; system notices skipped). */
+/** Last few turns for the LLM (customer + Durra AI + staff; system notices skipped). */
 async function recentHistory(conversationId, limit = 9) {
   const rows = await Message.find({ conversationId, sender: { $in: ['customer', 'ai', 'admin'] } })
     .sort({ createdAt: -1 })
