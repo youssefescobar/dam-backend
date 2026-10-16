@@ -84,6 +84,7 @@ describe('language + intent helpers', () => {
   it('recognises Arabic requests for a person', () => {
     expect(isExplicitHumanRequest('ابغى اكلم موظف')).toBe(true);
     expect(isExplicitHumanRequest('Can I speak to a real person?')).toBe(true);
+    expect(isExplicitHumanRequest('Are you a real person or a bot?')).toBe(false);
     expect(isExplicitHumanRequest('كم سعر التذكرة')).toBe(false);
   });
 

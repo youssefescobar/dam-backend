@@ -194,8 +194,12 @@ const HUMAN_REQUEST_RE = new RegExp(
   'i',
 );
 
+// "Are you a real person or a bot?" asks what Durra is; it is not a hand-over request.
+const ASKS_IF_BOT_RE = /\bare you (a |an )?(real|live|human|bot|robot|ai)\b|هل (انت|أنت) (بوت|روبوت|انسان|إنسان|حقيقي)/i;
+
 export function isExplicitHumanRequest(text) {
-  return HUMAN_REQUEST_RE.test(String(text || ''));
+  const t = String(text || '');
+  return HUMAN_REQUEST_RE.test(t) && !ASKS_IF_BOT_RE.test(t);
 }
 
 /** Immediate safety / critical escalation triggers. */

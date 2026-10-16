@@ -119,6 +119,7 @@ async function main() {
     const flags = [];
     if (r.status !== 200) flags.push(r.status ? `HTTP ${r.status}` : 'NETWORK');
     if (!reply) flags.push('NO REPLY');
+    if (b.reason === 'llm_failure') flags.push('AI FAILED');
     if (r.ms > SLOW_MS) flags.push('SLOW');
     if (reply.length > LONG_CHARS) flags.push('LONG');
     if (c.expect === 'human' && !b.escalated) flags.push('SHOULD ESCALATE');
