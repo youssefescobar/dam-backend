@@ -114,16 +114,25 @@ async function callGemini({ question, context, history, lang }) {
   const contents = buildContents(history, question);
   const errors = [];
 
-  for (const model of resolveGeminiModels()) {
-    try {
-      const started = Date.now();
-      const answer = await callGeminiModel(key, model, system, contents);
-      logger.info({ model, ms: Date.now() - started }, 'Gemini answered');
-      return { answer, model };
-    } catch (err) {
-      logger.warn({ model, err: err.message }, 'Gemini model failed');
-      errors.push(err);
-      if (/HTTP 401|HTTP 403|HTTP 429/.test(err.message)) break;
+  // Second pass only when every model said 503 (Google overload is usually brief).
+  for (let pass = 0; pass < 2; pass += 1) {
+    if (pass === 1) {
+      if (!errors.every((e) => /HTTP 503/.test(e.message))) break;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    for (const model of resolveGeminiModels()) {
+      try {
+        const started = Date.now();
+        const answer = await callGeminiModel(key, model, system, contents);
+        logger.info({ model, ms: Date.now() - started }, 'Gemini answered');
+        return { answer, model };
+      } catch (err) {
+        logger.warn({ model, err: err.message }, 'Gemini model failed');
+        errors.push(err);
+        if (/HTTP 401|HTTP 403|HTTP 429/.test(err.message)) {
+          throw new Error(errors.map((e) => e.message).join('; '));
+        }
+      }
     }
   }
 
@@ -145,7 +154,7 @@ async function callGeminiModel(key, model, system, contents) {
         thinkingConfig: { thinkingLevel: 'minimal' },
       },
     }),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!res.ok) {
