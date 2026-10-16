@@ -248,7 +248,7 @@ The model answers with an exact word the server acts on:
 
 ### Calling Gemini
 
-- Models: `GEMINI_MODEL` (default `gemini-3.1-flash-lite`), fallbacks `gemini-3.5-flash-lite`, then `gemini-3.6-flash`. A 401/403/429 stops the fallback chain.
+- Models: `GEMINI_MODEL` (default `gemini-3.5-flash-lite`), fallbacks `gemini-3.6-flash`, then `gemini-3.1-flash-lite`. A 401/403/429 stops the fallback chain.
 - Request: `systemInstruction` = persona + language note + relevant FAQ; `contents` = alternating user/model turns; temperature 0.3; up to 450 output tokens; 30 s timeout; API key sent in the `x-goog-api-key` header.
 - On failure Durra AI says it is “a bit stuck” and shows the menu (`llm_failure`). The conversation is **not** locked or escalated.
 

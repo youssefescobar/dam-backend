@@ -74,7 +74,7 @@ function checkSockets() {
 
 async function checkLlm(deep) {
   const geminiConfigured = Boolean(process.env.GEMINI_API_KEY);
-  const model = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+  const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
   const providers = {
     gemini: {

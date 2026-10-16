@@ -9,7 +9,7 @@ Transportation company API: FAQ-in-prompt Q&A, quote requests, Socket.io human e
 | Runtime | Node.js + Express (ESM) |
 | Database | MongoDB Atlas (M0) / `mongodb-memory-server` in tests |
 | Knowledge | Mongo FAQ rows (`title` / `content` + intent/category/locale) from `data/kb-info-full*.csv` injected into the LLM prompt |
-| LLM | Gemini (`gemini-3.1-flash-lite`, fallbacks `gemini-3.5-flash-lite`, `gemini-3.6-flash`) |
+| LLM | Gemini (`gemini-3.5-flash-lite`, fallbacks `gemini-3.6-flash`, `gemini-3.1-flash-lite`) |
 | Realtime | Socket.io |
 | Push | Web Push (VAPID) |
 | Auth | JWT + bcrypt |

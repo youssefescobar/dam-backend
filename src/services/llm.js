@@ -24,10 +24,10 @@ export const SYSTEM_PROMPT = [
  * Cheapest solid text model for FAQ Q&A (high-throughput Flash-Lite).
  * Override with GEMINI_MODEL. Fallback keeps chat up if one id is overloaded.
  */
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
-// Last fallback is a non-Lite model: Lite models can be overloaded (HTTP 503) at the same time.
-const GEMINI_FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash'];
+// First fallback is a non-Lite model: Lite models can be overloaded (HTTP 503) at the same time.
+const GEMINI_FALLBACK_MODELS = ['gemini-3.6-flash', 'gemini-3.1-flash-lite'];
 
 /** @type {((prompt: { question: string, context: string, history: Array<{role: string, text: string}>, lang: string }) => Promise<string>) | null} */
 let llmOverride = null;

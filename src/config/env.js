@@ -29,7 +29,7 @@ export function loadEnv(source = process.env, options = {}) {
     jwtSecret: source.JWT_SECRET || '',
     corsOrigin: source.CORS_ORIGIN || '*',
     geminiApiKey: source.GEMINI_API_KEY || '',
-    geminiModel: source.GEMINI_MODEL || 'gemini-3.1-flash-lite',
+    geminiModel: source.GEMINI_MODEL || 'gemini-3.5-flash-lite',
     vapidPublicKey: source.VAPID_PUBLIC_KEY || '',
     vapidPrivateKey: source.VAPID_PRIVATE_KEY || '',
     vapidSubject: source.VAPID_SUBJECT || 'mailto:admin@example.com',
