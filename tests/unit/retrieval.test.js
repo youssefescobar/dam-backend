@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import { normalizeArabic, selectRelevantEntries, tokenize } from '../../src/services/faqPrompt.js';
-import { buildContents, classifyChitchat, isExplicitHumanRequest, looksLikeEscalate } from '../../src/services/llm.js';
+import { buildContents, classifyChitchat, isExplicitHumanRequest, looksLikeEscalate, stripIntro } from '../../src/services/llm.js';
 import { detectIntent, detectLang } from '../../src/config/guidedChat.js';
 
 const entry = (id, title, content, extra = {}) => ({
@@ -120,5 +120,14 @@ describe('language + intent helpers', () => {
     expect(looksLikeEscalate("I don't know")).toBe(false);
     expect(looksLikeEscalate('We do not escalate fares')).toBe(false);
     expect(looksLikeEscalate('I am very sorry to hear about this delay. ESCALATE')).toBe(true);
+  });
+
+  it('drops the self-introduction unless asked who Durra is', () => {
+    expect(stripIntro('Hello! I am Durra AI, your virtual assistant. Yes, trips are available.')).toBe('Yes, trips are available.');
+    expect(stripIntro('أهلاً بك، أنا درة الذكاء الاصطناعي. يتحدد السعر حسب المسافة.')).toBe('يتحدد السعر حسب المسافة.');
+    expect(stripIntro('أهلاً بك، معك درة AI المساعدة الآلية. لدينا باصات.')).toBe('لدينا باصات.');
+    expect(stripIntro('I am Durra AI, the assistant.')).toBe('I am Durra AI, the assistant.');
+    expect(stripIntro('I am Durra AI. How can I help?', 'Are you a real person or a bot?')).toBe('I am Durra AI. How can I help?');
+    expect(stripIntro('Yes, we run buses.')).toBe('Yes, we run buses.');
   });
 });

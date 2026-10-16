@@ -6,6 +6,7 @@ import {
   generateAnswer,
   looksLikeDontKnow,
   looksLikeEscalate,
+  stripIntro,
   isExplicitHumanRequest,
   isImmediateSafetyEscalation,
   classifyChitchat,
@@ -332,7 +333,7 @@ export async function handleChatMessage(input) {
   }
 
   conversation.unsureStreak = 0;
-  return replyAi(conversation, llmResult.answer, {
+  return replyAi(conversation, stripIntro(llmResult.answer, typed), {
     reason: 'faq',
     options: menuOptions(lang),
     provider: llmResult.provider,

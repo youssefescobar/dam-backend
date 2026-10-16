@@ -172,6 +172,18 @@ export function looksLikeDontKnow(answer) {
   );
 }
 
+// "Hello! I am Durra AI, your virtual assistant." The chat window already greets the customer.
+const INTRO_RE =
+  /^\s*((hello|hi|welcome)[!,.]?\s*)?(i am|i'm|i’m) (durra|an ai assistant)[^.!?]*[.!?]\s*|^\s*(أهلا[ًا]?( بك| وسهلا)?[،,.!]?\s*)?(أنا|انا|معك) درة[^.!؟]*[.!؟]\s*/i;
+
+/** Drop the model's self-introduction, unless the customer asked who or what Durra is. */
+export function stripIntro(answer, question = '') {
+  const text = String(answer || '');
+  if (ASKS_IF_BOT_RE.test(question) || /\bwho are you\b|من (انت|أنت)/i.test(question)) return text;
+  const rest = text.replace(INTRO_RE, '');
+  return rest.trim() ? rest : text;
+}
+
 /** The model answers "ESCALATE" when a person must take over; it sometimes puts it after an apology. */
 export function looksLikeEscalate(answer) {
   const t = String(answer || '').trim();
