@@ -187,7 +187,8 @@ export function initChatSockets(serverIo) {
     socket.on('admin:message', async (payload = {}, ack) => {
       try {
         const admin = requireSocketAdmin(socket);
-        const { conversationId, text } = payload;
+        const { conversationId } = payload;
+        const text = String(payload.text || '').trim().slice(0, 4000);
         const adminId = admin._id.toString();
         if (!conversationId || !text) {
           throw new Error('conversationId and text are required');
@@ -195,8 +196,9 @@ export function initChatSockets(serverIo) {
 
         const conversation = await Conversation.findById(conversationId);
         if (!conversation) throw new Error('Conversation not found');
-        if (conversation.status === 'closed') {
-          throw new Error('Conversation is closed');
+        // Only the agent who claimed the chat may talk in it (the AI is silent only while claimed).
+        if (conversation.status !== 'claimed' || String(conversation.assignedAdminId) !== adminId) {
+          throw new Error('Claim this chat first');
         }
 
         const message = await Message.create({
@@ -211,6 +213,7 @@ export function initChatSockets(serverIo) {
           sender: 'admin',
           text,
           messageId: message._id.toString(),
+          conversationId,
           adminId,
         });
 

@@ -405,6 +405,10 @@ export const REPLIES = {
     en: 'No one is online at the moment. Your message is saved and the first available teammate will reply.',
     ar: 'لا يوجد أحد متصل حالياً. رسالتك محفوظة وسيرد عليك أول موظف متاح.',
   },
+  closedByAdmin: {
+    en: 'This chat was closed by our team. Send a message anytime to start again.',
+    ar: 'أغلق فريقنا هذه المحادثة. أرسل رسالة في أي وقت للبدء من جديد.',
+  },
   rateLimited: {
     en: 'You are sending messages very fast. Please wait a moment and try again.',
     ar: 'ترسل رسائل بسرعة كبيرة. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى.',

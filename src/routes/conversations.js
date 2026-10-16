@@ -7,6 +7,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errorHandler.js';
 import { emitToAdminQueue, emitToConversation } from '../sockets/chat.js';
+import { REPLIES, pickText } from '../config/guidedChat.js';
 
 const router = Router();
 
@@ -66,7 +67,8 @@ router.get('/', async (req, res, next) => {
 
 const patchSchema = z
   .object({
-    status: z.enum(['closed', 'needs_human', 'ai_handling', 'claimed']).optional(),
+    // 'claimed' only via the atomic socket `admin:claim`, which also sets the agent.
+    status: z.enum(['closed', 'needs_human', 'ai_handling']).optional(),
   })
   .refine((b) => Boolean(b.status), { message: 'status is required' });
 
@@ -82,28 +84,27 @@ router.patch('/:id', validateBody(patchSchema), async (req, res, next) => {
 
     if (req.body.status) {
       conversation.status = req.body.status;
-      if (req.body.status === 'needs_human') {
-        conversation.assignedAdminId = null;
-      }
+      conversation.assignedAdminId = null;
       conversation.lastActivityAt = new Date();
     }
 
     await conversation.save();
 
     if (req.body.status === 'closed') {
+      const conversationId = conversation._id.toString();
       const notice = await Message.create({
         conversationId: conversation._id,
         sender: 'system',
-        text: 'This conversation was closed by an admin.',
+        text: pickText(REPLIES.closedByAdmin, conversation.language),
       });
-      emitToConversation(conversation._id.toString(), 'message:new', {
+      emitToConversation(conversationId, 'message:new', {
         sender: 'system',
         text: notice.text,
-        conversationId: conversation._id.toString(),
+        messageId: notice._id.toString(),
+        conversationId,
       });
-      emitToAdminQueue('conversation:closed', {
-        conversationId: conversation._id.toString(),
-      });
+      emitToConversation(conversationId, 'conversation:closed', { conversationId, reason: 'admin' });
+      emitToAdminQueue('conversation:closed', { conversationId });
     }
 
     res.json({ conversation });
