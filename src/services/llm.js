@@ -26,7 +26,8 @@ export const SYSTEM_PROMPT = [
  */
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
 
-const GEMINI_FALLBACK_MODELS = ['gemini-3.5-flash-lite'];
+// Last fallback is a non-Lite model: Lite models can be overloaded (HTTP 503) at the same time.
+const GEMINI_FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash'];
 
 /** @type {((prompt: { question: string, context: string, history: Array<{role: string, text: string}>, lang: string }) => Promise<string>) | null} */
 let llmOverride = null;
