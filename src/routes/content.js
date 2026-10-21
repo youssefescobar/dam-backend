@@ -10,9 +10,6 @@ const localizedSchema = z
     title: z.string().max(200),
     excerpt: z.string().max(600),
     body: z.string().max(20000),
-    location: z.string().max(120),
-    type: z.string().max(60),
-    summary: z.string().max(2000),
     quote: z.string().max(1200),
     name: z.string().max(120),
     role: z.string().max(160),
@@ -45,7 +42,6 @@ const kindOf = (req) => {
 /** Required fields per kind, checked in at least one language. */
 const REQUIRED = {
   news: ['title', 'body'],
-  career: ['title'],
   testimonial: ['quote', 'name'],
 };
 
@@ -80,15 +76,11 @@ function localize(doc, locale) {
       coverImage: doc.image || null,
     };
   }
-  if (doc.kind === 'career') {
-    return { id, title: t('title'), location: t('location'), type: t('type'), summary: t('summary') };
-  }
   return { id, quote: t('quote'), name: t('name'), role: t('role'), avatar: doc.image || null };
 }
 
 const SORT = {
   news: { publishedAt: -1, createdAt: -1 },
-  career: { sortOrder: 1, createdAt: -1 },
   testimonial: { sortOrder: 1, createdAt: -1 },
 };
 

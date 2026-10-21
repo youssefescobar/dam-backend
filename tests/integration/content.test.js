@@ -54,10 +54,14 @@ describe('Website content (/content)', () => {
   });
 
   it('hides drafts from the public list but shows them to admins', async () => {
-    await request(app).post('/content/career').set(auth).send({ en: { title: 'Driver', location: 'Makkah' } });
-    expect((await request(app).get('/content/career')).body.items).toHaveLength(0);
-    const all = await request(app).get('/content/career/all').set(auth);
+    await request(app).post('/content/testimonial').set(auth).send({ en: { quote: 'Great trip', name: 'Ali' } });
+    expect((await request(app).get('/content/testimonial')).body.items).toHaveLength(0);
+    const all = await request(app).get('/content/testimonial/all').set(auth);
     expect(all.body.items).toHaveLength(1);
+  });
+
+  it('no longer serves careers', async () => {
+    expect((await request(app).get('/content/career')).status).toBe(404);
   });
 
   it('validates required fields per kind and unique news slugs', async () => {
