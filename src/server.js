@@ -10,6 +10,7 @@ import { initChatSockets } from './sockets/chat.js';
 import { initPush } from './services/push.js';
 import { startConversationLifecycleJob } from './services/conversationLifecycle.js';
 import { startQuoteReminderJob } from './services/quoteReminders.js';
+import { startMediaCleanupJob } from './services/mediaCleanup.js';
 import { logger } from './utils/logger.js';
 
 /**
@@ -35,6 +36,7 @@ export async function boot(options = {}) {
   initPush();
   startConversationLifecycleJob();
   startQuoteReminderJob();
+  startMediaCleanupJob();
 
   if (shouldListen) {
     await new Promise((resolve) => {

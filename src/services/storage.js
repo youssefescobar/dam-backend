@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { HttpError } from '../middleware/errorHandler.js';
 
@@ -71,6 +77,38 @@ export async function presignUpload({ bucket, prefix, contentType, size }) {
     headers: { 'Content-Type': contentType },
     url: bucket === 'public' ? `${base}/${key}` : null,
   };
+}
+
+/**
+ * Bucket key of a file the admin uploaded (admin/<yyyy-mm>/<uuid>.<ext>), read from its URL
+ * whatever the host, so a later switch from r2.dev to a custom domain still matches.
+ * Pasted links to other sites give null and are never touched.
+ */
+export function adminKeyOf(url) {
+  return /\/(admin\/\d{4}-\d{2}\/[a-f0-9-]{36}\.[a-z0-9]+)$/.exec(String(url || ''))?.[1] ?? null;
+}
+
+/** Every file under a prefix of the public bucket, with when it was uploaded. */
+export async function listPublicFiles(prefix) {
+  const client = r2();
+  const files = [];
+  let ContinuationToken;
+  do {
+    const page = await client.send(
+      new ListObjectsV2Command({ Bucket: process.env.R2_PUBLIC_BUCKET, Prefix: prefix, ContinuationToken })
+    );
+    for (const o of page.Contents ?? []) files.push({ key: o.Key, lastModified: o.LastModified });
+    ContinuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (ContinuationToken);
+  return files;
+}
+
+export async function deletePublicFiles(keys) {
+  if (!keys.length) return;
+  const client = r2();
+  for (const Key of keys) {
+    await client.send(new DeleteObjectCommand({ Bucket: process.env.R2_PUBLIC_BUCKET, Key }));
+  }
 }
 
 /** Short-lived download link for a private file, sent as an attachment so it never renders inline. */

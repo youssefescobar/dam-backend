@@ -4,6 +4,8 @@ import { CONTENT_KINDS, SiteContent } from '../models/SiteContent.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errorHandler.js';
+import { deleteUnusedMedia } from '../services/mediaCleanup.js';
+import { logger } from '../utils/logger.js';
 
 const localizedSchema = z
   .object({
@@ -68,6 +70,10 @@ function withCover(kind, body) {
   const media = body.media ?? (body.image ? [body.image] : []);
   return { ...body, media, image: media[0] || '' };
 }
+
+/** Delete files a save or delete left unused. Runs after the response; a storage hiccup is only logged (the hourly sweep retries). */
+const cleanUp = (urls) =>
+  deleteUnusedMedia(urls).catch((err) => logger.warn({ err: err.message }, 'media cleanup failed'));
 
 const mediaOf = (doc) => (doc.media?.length ? doc.media : doc.image ? [doc.image] : []);
 
@@ -145,9 +151,12 @@ router.put('/:kind/:id', requireAuth, validateBody(itemSchema), async (req, res,
     const item = await SiteContent.findOne({ _id: req.params.id, kind });
     if (!item) throw new HttpError(404, 'Not found');
     const firstPublish = req.body.published && !item.published && !item.publishedAt;
+    const before = [item.image, ...item.media];
     item.set({ ...withCover(kind, req.body), publishedAt: req.body.publishedAt ?? (firstPublish ? new Date() : item.publishedAt) });
     await item.save();
     res.json({ item });
+    const kept = new Set([item.image, ...item.media]);
+    cleanUp(before.filter((url) => !kept.has(url)));
   } catch (err) {
     if (err?.code === 11000) return next(new HttpError(409, 'Another news post already uses this slug', { slug: 'already in use' }));
     next(err);
@@ -160,6 +169,7 @@ router.delete('/:kind/:id', requireAuth, async (req, res, next) => {
     const deleted = await SiteContent.findOneAndDelete({ _id: req.params.id, kind });
     if (!deleted) throw new HttpError(404, 'Not found');
     res.json({ ok: true });
+    cleanUp([deleted.image, ...(deleted.media || [])]);
   } catch (err) {
     next(err);
   }
