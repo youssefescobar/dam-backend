@@ -49,6 +49,10 @@ describe('File uploads (presigned R2 URLs)', () => {
 
     const bad = await request(app).post('/uploads').set(auth).send({ contentType: 'image/svg+xml', size: 10 });
     expect(bad.status).toBe(400);
+    const MB = 1024 * 1024;
+    expect((await request(app).post('/uploads').set(auth).send({ contentType: 'image/png', size: 11 * MB })).status).toBe(400);
+    expect((await request(app).post('/uploads').set(auth).send({ contentType: 'video/mp4', size: 90 * MB })).status).toBe(200);
+    expect((await request(app).post('/uploads').set(auth).send({ contentType: 'video/mp4', size: 101 * MB })).status).toBe(400);
 
     const res = await request(app).post('/uploads').set(auth).send({ contentType: 'image/png', size: 1234 });
     expect(res.status).toBe(200);

@@ -27,6 +27,8 @@ const itemSchema = z.object({
     .optional()
     .or(z.literal('')),
   image: z.string().trim().max(1000).optional().default(''),
+  /** News only: images/videos in display order; the first one is the cover. */
+  media: z.array(z.string().trim().min(1).max(1000)).max(12).optional(),
   publishedAt: z.coerce.date().optional().nullable(),
   sortOrder: z.coerce.number().int().optional().default(0),
   en: localizedSchema.optional().default({}),
@@ -60,6 +62,15 @@ function checkItem(kind, body) {
   }
 }
 
+/** News keeps `image` as its cover (the first media item) so older readers still work. */
+function withCover(kind, body) {
+  if (kind !== 'news') return { ...body, media: [] };
+  const media = body.media ?? (body.image ? [body.image] : []);
+  return { ...body, media, image: media[0] || '' };
+}
+
+const mediaOf = (doc) => (doc.media?.length ? doc.media : doc.image ? [doc.image] : []);
+
 /** Pick the requested language, falling back to the other one field by field. */
 function localize(doc, locale) {
   const main = doc[locale] || {};
@@ -73,7 +84,8 @@ function localize(doc, locale) {
       excerpt: t('excerpt'),
       body: t('body'),
       publishedAt: (doc.publishedAt || doc.createdAt)?.toISOString?.() ?? null,
-      coverImage: doc.image || null,
+      coverImage: mediaOf(doc)[0] || null,
+      media: mediaOf(doc),
     };
   }
   return { id, quote: t('quote'), name: t('name'), role: t('role'), avatar: doc.image || null };
@@ -115,7 +127,7 @@ router.post('/:kind', requireAuth, validateBody(itemSchema), async (req, res, ne
     const kind = kindOf(req);
     checkItem(kind, req.body);
     const item = await SiteContent.create({
-      ...req.body,
+      ...withCover(kind, req.body),
       kind,
       publishedAt: req.body.publishedAt ?? (req.body.published ? new Date() : null),
     });
@@ -133,7 +145,7 @@ router.put('/:kind/:id', requireAuth, validateBody(itemSchema), async (req, res,
     const item = await SiteContent.findOne({ _id: req.params.id, kind });
     if (!item) throw new HttpError(404, 'Not found');
     const firstPublish = req.body.published && !item.published && !item.publishedAt;
-    item.set({ ...req.body, publishedAt: req.body.publishedAt ?? (firstPublish ? new Date() : item.publishedAt) });
+    item.set({ ...withCover(kind, req.body), publishedAt: req.body.publishedAt ?? (firstPublish ? new Date() : item.publishedAt) });
     await item.save();
     res.json({ item });
   } catch (err) {

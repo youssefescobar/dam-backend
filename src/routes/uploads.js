@@ -5,12 +5,19 @@ import { validateBody } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errorHandler.js';
 import { ADMIN_TYPES, presignPrivateRead, presignUpload } from '../services/storage.js';
 
-const MAX_ADMIN_BYTES = 200 * 1024 * 1024;
+const MB = 1024 * 1024;
+/** The admin shrinks photos before upload, so 10 MB only matters for GIFs or pasted originals. */
+const MAX_BYTES = { image: 10 * MB, video: 100 * MB, application: 20 * MB };
 
-const uploadSchema = z.object({
-  contentType: z.enum(ADMIN_TYPES, { message: 'file type not allowed' }),
-  size: z.number().int().positive().max(MAX_ADMIN_BYTES, 'file is larger than 200 MB'),
-});
+const uploadSchema = z
+  .object({
+    contentType: z.enum(ADMIN_TYPES, { message: 'file type not allowed' }),
+    size: z.number().int().positive(),
+  })
+  .refine((b) => b.size <= MAX_BYTES[b.contentType.split('/')[0]], {
+    path: ['size'],
+    message: 'file too large (images 10 MB, videos 100 MB, documents 20 MB)',
+  });
 
 const router = Router();
 

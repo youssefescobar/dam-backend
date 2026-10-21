@@ -60,6 +60,17 @@ describe('Website content (/content)', () => {
     expect(all.body.items).toHaveLength(1);
   });
 
+  it('keeps several media on a news post, first one as the cover', async () => {
+    const media = ['https://cdn.test/a.webp', 'https://cdn.test/b.mp4'];
+    const created = await request(app).post('/content/news').set(auth).send({ ...news, image: 'ignored', media });
+    expect(created.body.item.image).toBe(media[0]);
+    const [post] = (await request(app).get('/content/news?locale=en')).body.items;
+    expect(post).toMatchObject({ coverImage: media[0], media });
+
+    const legacy = await request(app).post('/content/news').set(auth).send({ ...news, slug: 'old', image: 'https://cdn.test/old.jpg' });
+    expect(legacy.body.item.media).toEqual(['https://cdn.test/old.jpg']);
+  });
+
   it('no longer serves careers', async () => {
     expect((await request(app).get('/content/career')).status).toBe(404);
   });

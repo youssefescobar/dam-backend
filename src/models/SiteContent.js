@@ -25,6 +25,8 @@ const siteContentSchema = new mongoose.Schema(
     slug: { type: String, default: '', trim: true, lowercase: true },
     /** News cover or testimonial avatar (absolute URL or site path). */
     image: { type: String, default: '', trim: true },
+    /** News only: images/videos in display order; media[0] is mirrored into `image`. */
+    media: { type: [String], default: [] },
     publishedAt: { type: Date, default: null },
     sortOrder: { type: Number, default: 0 },
     en: { type: localizedSchema, default: () => ({}) },
