@@ -8,6 +8,7 @@ import { REPLIES, getWelcomePayload, menuOptions, normalizeLang, pickText } from
 import { getCompanySettings } from '../models/Settings.js';
 import { Conversation } from '../models/Conversation.js';
 import { CHAT_TYPES, presignUpload } from '../services/storage.js';
+import { currentStep } from '../config/guidedForms.js';
 
 const langSchema = z.enum(['en', 'ar']).optional();
 
@@ -29,9 +30,11 @@ const messageSchema = z
     lang: langSchema,
     /** @deprecated use session + conversationId */
     customerContact: z.string().optional(),
+    /** A file uploaded through POST /chat/upload, answering the current form step. */
+    attachment: z.object({ key: z.string().max(300), name: z.string().max(300).optional() }).optional(),
   })
-  .refine((b) => Boolean(b.choiceId) || Boolean(String(b.text || '').trim()), {
-    message: 'text or choiceId is required',
+  .refine((b) => Boolean(b.choiceId) || Boolean(String(b.text || '').trim()) || Boolean(b.attachment), {
+    message: 'text, choiceId or attachment is required',
   });
 
 const router = Router();
@@ -124,12 +127,18 @@ const uploadSchema = z.object({
   lang: langSchema,
 });
 
-/** Presign a private upload (CV, photo of a lost item, …) for an open conversation. */
+/**
+ * Presign a private upload (CV, complaint photo). Only while the chat's form is waiting
+ * on a file step that accepts this type and size, so the bucket can't be used as free storage.
+ */
 router.post('/upload', chatLimiter, customerLimiter, validateBody(uploadSchema), async (req, res, next) => {
   try {
     const { conversationId, contentType, size } = req.body;
-    const open = await Conversation.exists({ _id: conversationId, status: { $ne: 'closed' } });
-    if (!open) return res.status(404).json({ error: 'Conversation not found' });
+    const conversation = await Conversation.findOne({ _id: conversationId, status: 'ai_handling' });
+    const file = currentStep(conversation)?.file;
+    if (!file) return res.status(409).json({ error: 'This chat is not waiting for a file' });
+    if (!file.accept.includes(contentType)) return res.status(400).json({ error: 'This file type is not accepted here' });
+    if (size > file.maxMb * 1024 * 1024) return res.status(400).json({ error: `File is larger than ${file.maxMb} MB` });
     const { key, uploadUrl, headers } = await presignUpload({
       bucket: 'private',
       prefix: `chat/${conversationId}`,
@@ -155,6 +164,7 @@ router.post('/message', chatLimiter, customerLimiter, validateBody(messageSchema
       systemMessage: result.systemMessage || null,
       options: result.options || [],
       detail: result.detail || null,
+      upload: result.upload || null,
     });
   } catch (err) {
     next(err);

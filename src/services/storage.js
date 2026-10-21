@@ -26,6 +26,12 @@ const EXT = {
 export const ADMIN_TYPES = Object.keys(EXT);
 export const CHAT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', DOCX];
 
+/** 'pdf' -> 'application/pdf'; null for anything not allowed. */
+export const contentTypeForExt = (ext) => ADMIN_TYPES.find((t) => EXT[t] === ext) ?? null;
+
+const bucketName = (bucket) =>
+  bucket === 'public' ? process.env.R2_PUBLIC_BUCKET : process.env.R2_PRIVATE_BUCKET;
+
 /** Presigned URLs live this long; the browser uploads right after asking. */
 const TTL_SECONDS = 5 * 60;
 
@@ -61,7 +67,7 @@ function r2() {
  */
 export async function presignUpload({ bucket, prefix, contentType, size }) {
   const client = r2();
-  const name = bucket === 'public' ? process.env.R2_PUBLIC_BUCKET : process.env.R2_PRIVATE_BUCKET;
+  const name = bucketName(bucket);
   if (!name) throw new HttpError(503, 'File uploads are not configured');
 
   const key = `${prefix}/${randomUUID()}.${EXT[contentType]}`;
@@ -88,14 +94,14 @@ export function adminKeyOf(url) {
   return /\/(admin\/\d{4}-\d{2}\/[a-f0-9-]{36}\.[a-z0-9]+)$/.exec(String(url || ''))?.[1] ?? null;
 }
 
-/** Every file under a prefix of the public bucket, with when it was uploaded. */
-export async function listPublicFiles(prefix) {
+/** Every file under a prefix of a bucket ('public' | 'private'), with when it was uploaded. */
+export async function listFiles(bucket, prefix) {
   const client = r2();
   const files = [];
   let ContinuationToken;
   do {
     const page = await client.send(
-      new ListObjectsV2Command({ Bucket: process.env.R2_PUBLIC_BUCKET, Prefix: prefix, ContinuationToken })
+      new ListObjectsV2Command({ Bucket: bucketName(bucket), Prefix: prefix, ContinuationToken })
     );
     for (const o of page.Contents ?? []) files.push({ key: o.Key, lastModified: o.LastModified });
     ContinuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
@@ -103,11 +109,11 @@ export async function listPublicFiles(prefix) {
   return files;
 }
 
-export async function deletePublicFiles(keys) {
+export async function deleteFiles(bucket, keys) {
   if (!keys.length) return;
   const client = r2();
   for (const Key of keys) {
-    await client.send(new DeleteObjectCommand({ Bucket: process.env.R2_PUBLIC_BUCKET, Key }));
+    await client.send(new DeleteObjectCommand({ Bucket: bucketName(bucket), Key }));
   }
 }
 

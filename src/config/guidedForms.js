@@ -1,9 +1,12 @@
+const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
 /**
  * Step-by-step forms Durra AI walks a customer through (English + Arabic).
  * Each answer is stored in conversation.flow.data[key]; the last step creates a Report.
+ * A step with `file` asks for an upload (see POST /chat/upload) instead of typed text.
  */
 
-import { formatWhatsApp, normalizeLang, pickText } from './guidedChat.js';
+import { normalizeLang, pickText } from './guidedChat.js';
 
 /** Keep codes and numbers left-to-right inside Arabic sentences (LRI … PDI). */
 const ltr = (s) => `⁦${s}⁩`;
@@ -13,6 +16,7 @@ export const GUIDED_FORMS = {
     reportType: 'complaint',
     refPrefix: 'CMP',
     label: { en: 'complaint', ar: 'الشكوى' },
+    staffTitle: 'New complaint',
     intro: {
       en: 'I’m sorry about that. I’ll log a complaint for you — it takes a few quick questions. Type “cancel” at any time to stop.',
       ar: 'يؤسفني ذلك. سأسجّل شكواك الآن، وتحتاج بضعة أسئلة سريعة. اكتب «إلغاء» في أي وقت للتوقف.',
@@ -36,47 +40,54 @@ export const GUIDED_FORMS = {
         key: 'description',
         prompt: { en: 'Please describe what happened.', ar: 'من فضلك صف لي ما حدث.' },
       },
+      {
+        key: 'photo',
+        file: { accept: ['image/jpeg', 'image/png', 'image/webp'], maxMb: 10, optional: true },
+        prompt: {
+          en: 'Do you have a photo? Attach it with the paperclip button, or type “skip”.',
+          ar: 'هل لديك صورة؟ أرفقها بزر المشبك، أو اكتب «تخطي».',
+        },
+        hint: {
+          en: 'To add a photo, tap the paperclip button. Or type “skip” to finish without one.',
+          ar: 'لإضافة صورة اضغط زر المشبك، أو اكتب «تخطي» للإنهاء بدونها.',
+        },
+      },
     ],
   },
-  lost_found: {
-    reportType: 'lost_found',
-    refPrefix: 'LF',
-    label: { en: 'lost-item report', ar: 'بلاغ المفقودات' },
+  career: {
+    reportType: 'career',
+    refPrefix: 'JOB',
+    label: { en: 'job application', ar: 'طلب التوظيف' },
+    staffTitle: 'New job application',
     intro: {
-      en: 'Sorry to hear that — let’s try to get it back to you. A few quick questions. Type “cancel” at any time to stop.',
-      ar: 'نأسف لذلك، لنحاول إعادته إليك. بضعة أسئلة سريعة. اكتب «إلغاء» في أي وقت للتوقف.',
+      en: 'Great, thanks for your interest in joining us. Two quick steps. Type “cancel” at any time to stop.',
+      ar: 'رائع، شكراً لاهتمامك بالانضمام إلينا. خطوتان سريعتان. اكتب «إلغاء» في أي وقت للتوقف.',
     },
     steps: [
       {
-        key: 'tripNumber',
-        prompt: { en: 'What is the trip or bus number?', ar: 'ما رقم الرحلة أو الحافلة؟' },
-      },
-      {
-        key: 'incidentDate',
+        key: 'position',
         prompt: {
-          en: 'What date was the trip? (e.g. 2026-10-01)',
-          ar: 'ما تاريخ الرحلة؟ (مثال: 2026-10-01)',
+          en: 'Which job or field are you interested in? (e.g. bus driver, operations, accounting)',
+          ar: 'ما الوظيفة أو المجال الذي يهمك؟ (مثال: سائق حافلة، العمليات، المحاسبة)',
         },
       },
       {
-        key: 'incidentTime',
-        prompt: { en: 'Roughly what time did you travel?', ar: 'في أي وقت تقريباً كانت الرحلة؟' },
-      },
-      {
-        key: 'seat',
+        key: 'cv',
+        file: { accept: ['application/pdf', DOCX], maxMb: 10 },
         prompt: {
-          en: 'Which seat were you in? (or type “skip”)',
-          ar: 'ما رقم مقعدك؟ (أو اكتب «تخطي»)',
+          en: 'Please attach your CV using the paperclip button (PDF or Word, up to 10 MB).',
+          ar: 'من فضلك أرفق سيرتك الذاتية بزر المشبك (PDF أو Word، حتى 10 ميجابايت).',
         },
-      },
-      {
-        key: 'description',
-        prompt: {
-          en: 'Please describe the item (colour, brand, anything identifying).',
-          ar: 'من فضلك صف الغرض (اللون، الماركة، أي علامة مميزة).',
+        hint: {
+          en: 'I need the CV as a file. Tap the paperclip button to attach a PDF or Word document.',
+          ar: 'أحتاج السيرة الذاتية كملف. اضغط زر المشبك لإرفاق ملف PDF أو Word.',
         },
       },
     ],
+    done: {
+      en: 'Thank you, your application is received as {ref}. Our HR team will contact you on the phone number you gave us if there is a suitable opening.',
+      ar: 'شكراً لك، تم استلام طلبك برقم {ref}. سيتواصل معك فريق الموارد البشرية على رقم الجوال الذي زوّدتنا به إذا توفرت فرصة مناسبة.',
+    },
   },
 };
 
@@ -99,15 +110,22 @@ export function makeRefNumber(prefix) {
 }
 
 /** Thank-you line shown when a report is logged. */
-export function reportDoneText({ form, refNumber, slaHours, whatsapp, lang }) {
+export function reportDoneText({ form, refNumber, slaHours, lang }) {
   const ar = normalizeLang(lang) === 'ar';
-  const wa = whatsapp ? formatWhatsApp(whatsapp) : '';
-  const photo = wa
-    ? ar
-      ? ` إذا كانت لديك صورة، أرسلها على واتساب ${ltr(wa)} مع ذكر هذا الرقم.`
-      : ` If you have a photo, send it on WhatsApp (${wa}) quoting this number.`
-    : '';
+  if (form.done) return pickText(form.done, lang).replace('{ref}', ar ? ltr(refNumber) : refNumber);
   return ar
-    ? `شكراً لك، تم تسجيل ${pickText(form.label, 'ar')} برقم ${ltr(refNumber)}. سيرد عليك فريقنا خلال ${slaHours} ساعة تقريباً على رقم الجوال الذي زوّدتنا به.${photo}`
-    : `Thank you — your ${pickText(form.label, 'en')} is logged as ${refNumber}. Our team will respond within about ${slaHours} hours using the phone number you gave us.${photo}`;
+    ? `شكراً لك، تم تسجيل ${pickText(form.label, 'ar')} برقم ${ltr(refNumber)}. سيرد عليك فريقنا خلال ${slaHours} ساعة تقريباً على رقم الجوال الذي زوّدتنا به.`
+    : `Thank you — your ${pickText(form.label, 'en')} is logged as ${refNumber}. Our team will respond within about ${slaHours} hours using the phone number you gave us.`;
+}
+
+/** What the website needs to show the attach button for a file step, or null. */
+export function stepUpload(step) {
+  if (!step?.file) return null;
+  return { accept: step.file.accept, maxMb: step.file.maxMb, optional: Boolean(step.file.optional) };
+}
+
+/** The form step a conversation is waiting on, or null. */
+export function currentStep(conversation) {
+  const form = getForm(conversation?.flow?.type);
+  return form?.steps[conversation.flow.step] ?? null;
 }

@@ -105,11 +105,11 @@ describe('language + intent helpers', () => {
     expect(isExplicitHumanRequest('I need to speak to a manager')).toBe(true);
   });
 
-  it('only starts a lost-item or complaint form for clear requests', () => {
-    expect(detectIntent('I left my bag on the bus')).toBe('lost_found');
-    expect(detectIntent('نسيت حقيبتي في الحافلة')).toBe('lost_found');
-    expect(detectIntent('I left my phone number in the form')).toBeNull();
-    expect(detectIntent('نسيت أن أسأل عن شيء')).toBeNull();
+  it('only starts a job application or complaint form for clear requests', () => {
+    expect(detectIntent('I want to apply for a job')).toBe('careers');
+    expect(detectIntent('أبحث عن وظيفة')).toBe('careers');
+    expect(detectIntent('good job, thanks')).toBeNull();
+    expect(detectIntent('my job is near the airport')).toBeNull();
     expect(detectIntent('I want to make a complaint')).toBe('complaint');
     expect(detectIntent('the ride was terrible but the driver was nice')).toBeNull();
   });

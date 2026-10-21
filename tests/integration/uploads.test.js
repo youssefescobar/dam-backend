@@ -63,9 +63,10 @@ describe('File uploads (presigned R2 URLs)', () => {
     expect(new URL(res.body.uploadUrl).searchParams.get('X-Amz-SignedHeaders')).toContain('content-length');
   });
 
-  it('presigns chat uploads only for an open conversation, into the private bucket', async () => {
+  it('presigns chat uploads only while the chat waits for a file, into the private bucket', async () => {
     const customer = await Customer.create({ name: 'C', phone: '0500000000', contact: '0500000000' });
-    const convo = await Conversation.create({ customerId: customer._id });
+    // Job application, waiting on the CV step.
+    const convo = await Conversation.create({ customerId: customer._id, flow: { type: 'career', step: 1, data: { position: 'Driver' } } });
     const body = { conversationId: String(convo._id), contentType: 'application/pdf', size: 2048 };
 
     const res = await request(app).post('/chat/upload').send(body);
@@ -75,10 +76,10 @@ describe('File uploads (presigned R2 URLs)', () => {
     expect(res.body.url).toBeUndefined();
 
     expect((await request(app).post('/chat/upload').send({ ...body, size: 11 * 1024 * 1024 })).status).toBe(400);
-    expect((await request(app).post('/chat/upload').send({ ...body, conversationId: 'a'.repeat(24) })).status).toBe(404);
+    expect((await request(app).post('/chat/upload').send({ ...body, conversationId: 'a'.repeat(24) })).status).toBe(409);
     convo.status = 'closed';
     await convo.save();
-    expect((await request(app).post('/chat/upload').send(body)).status).toBe(404);
+    expect((await request(app).post('/chat/upload').send(body)).status).toBe(409);
 
     const read = await request(app).get('/uploads/private').query({ key: res.body.key }).set(auth);
     expect(read.status).toBe(200);

@@ -18,6 +18,11 @@ const messageSchema = new mongoose.Schema(
     reason: { type: String, default: '' },
     /** Guided topic id when a menu/shortcut answer was given. */
     topic: { type: String, default: '' },
+    /** A file the customer attached (private R2 key + original name); text holds the name. */
+    attachment: {
+      type: new mongoose.Schema({ key: String, name: String, contentType: String }, { _id: false }),
+      default: null,
+    },
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );

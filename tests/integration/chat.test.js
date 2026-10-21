@@ -253,7 +253,7 @@ describe('POST /chat/session & /chat/message', () => {
     expect(conv.language).toBe('ar');
   });
 
-  it('routes explicit quote / complaint / lost-item requests without the LLM', async () => {
+  it('routes explicit quote / careers requests without the LLM', async () => {
     setLlmOverride(async () => 'should not be called');
     const session = await openSession(app);
     const say = (text) =>
@@ -263,8 +263,8 @@ describe('POST /chat/session & /chat/message', () => {
     expect(quote.body.reason).toBe('guided');
     expect(quote.body.options.some((o) => o.id === 'open_quote')).toBe(true);
 
-    const lost = await say('I left my bag on the bus');
-    expect(lost.body.reason).toBe('flow_started');
+    const job = await say('do you have any vacancies?');
+    expect(job.body.reason).toBe('flow_started');
   });
 
   it('understands Arabic human requests and chit-chat', async () => {

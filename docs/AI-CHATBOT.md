@@ -1,6 +1,6 @@
 # Durra AI — the AI chatbot
 
-Durra AI (دُرّة) is the virtual assistant of Durrah Al-Munawwara Transport. It lives in a chat widget on the website (Arabic and English), answers from the company knowledge base, walks customers through complaint / lost-item forms, points them to the quote page, and hands over to a human agent whenever it should.
+Durra AI (دُرّة) is the virtual assistant of Durrah Al-Munawwara Transport. It lives in a chat widget on the website (Arabic and English), answers from the company knowledge base, walks customers through complaint and job-application forms, points them to the quote page, and hands over to a human agent whenever it should.
 
 This document explains how the whole thing works end to end: what happens to a message, where each piece lives, how to change it, and how to run and test it.
 
@@ -33,7 +33,7 @@ This document explains how the whole thing works end to end: what happens to a m
 | Guided topics | 14 menu buttons with fixed, reviewed answers. Work even if the AI is down. |
 | Free questions | Retrieval over the FAQ + Gemini, with short conversation memory. Answers only from the FAQ. |
 | Quote | Sends customers to the quote page (`/quote`) with an "Open the quote form" button. |
-| Complaints / lost items | Step-by-step form in chat → a `Report` with a reference number (`CMP-…` / `LF-…`) and an SLA. |
+| Complaints / careers | Step-by-step form in chat → a `Report` with a reference number (`CMP-…` / `JOB-…`). Careers takes a CV (PDF/Word); complaints take an optional photo. |
 | Human handover | Immediate for safety/fraud/“talk to a person”; gentle offer when Durra AI is unsure; automatic after 3 misses in a row. |
 | Staff tools | Admin Inbox (claim + reply live), Reports page, Knowledge page, Settings, push notifications. |
 | Resilience | If Gemini fails the menu still works; if the user reloads the page the chat is restored. |
@@ -54,7 +54,7 @@ flowchart LR
     R[routes/chat.js]
     S[services/chat.js<br/>message pipeline]
     G[config/guidedChat.js<br/>menu · intents · canned replies]
-    F[config/guidedForms.js<br/>complaint / lost-item forms]
+    F[config/guidedForms.js<br/>complaint / job-application forms]
     L[services/llm.js<br/>persona · Gemini · classifiers]
     K[services/faqPrompt.js<br/>FAQ retrieval]
     SK[sockets/chat.js]
@@ -79,7 +79,7 @@ flowchart LR
 |---|---|---|
 | Backend | `src/services/chat.js` | The message pipeline, forms, escalation, replies, resume. |
 | | `src/config/guidedChat.js` | Menu, node answers (EN/AR), intent shortcuts, language detection, canned system replies, greeting. |
-| | `src/config/guidedForms.js` | Complaint and lost-item steps (EN/AR), skip/cancel words, reference numbers, thank-you text. |
+| | `src/config/guidedForms.js` | Complaint and job-application steps (EN/AR), file steps, skip/cancel words, reference numbers, thank-you text. |
 | | `src/services/llm.js` | Durra AI persona prompt, Gemini calls, conversation memory, “don't know” / `ESCALATE` detection, human-request, safety and chit-chat classifiers. |
 | | `src/services/faqPrompt.js` | Loads FAQ rows, Arabic-aware tokenizer, relevance ranking, prompt formatting. |
 | | `src/routes/chat.js` | `/chat/*` HTTP endpoints, validation, rate limit. |
@@ -92,8 +92,7 @@ flowchart LR
 | | `src/lib/chat/*` | API client, identity storage, socket. |
 | | `src/app/chat/[...path]/route.ts` | Same-origin proxy to the backend (avoids CORS). |
 | Admin | `src/features/chat/inbox-page.tsx` | Live inbox. |
-| | `src/features/reports/reports-page.tsx` | Complaints & lost items. |
-| | `src/features/ai/ai-playground-page.tsx` | “Durra AI chat” — try the customer experience. |
+| | `src/features/reports/reports-page.tsx` | Complaints & job applications (with file downloads). |
 | | `src/features/kb`, `src/features/settings` | Knowledge base and company settings. |
 
 ---
@@ -165,9 +164,9 @@ Every response carries a `reason` the UI and tests can use:
 
 ### Menu topics (`MAIN_MENU_OPTIONS`)
 
-The menu shows five buttons: `quote`, `hajj`, `airport`, `complaint`, `human`.
+The menu shows six buttons: `quote`, `hajj`, `airport`, `complaint`, `careers`, `human`.
 
-All other topics stay in `ALL_TOPIC_OPTIONS` and still work: `workers`, `school`, `tourism`, `international`, `care`, `about`, `hours`, `contact`, `lost_found`. Customers reach them by typing (keyword shortcuts and the FAQ), and the quote wizard covers company, school and tourism trips. To change the menu, edit `MENU_IDS` in `src/config/guidedChat.js`.
+All other topics stay in `ALL_TOPIC_OPTIONS` and still work: `workers`, `school`, `tourism`, `international`, `care`, `about`, `hours`, `contact`. (The lost-item form was removed in October 2026; old `lost_found` reports still load in admin.) Customers reach them by typing (keyword shortcuts and the FAQ), and the quote wizard covers company, school and tourism trips. To change the menu, edit `MENU_IDS` in `src/config/guidedChat.js`.
 
 Each non-form topic has a fixed `{ en, ar }` answer in `GUIDED_NODES`. `hours` and `contact` are built from live **Settings** (hours, phones, WhatsApp, email, address); `quote` appends the WhatsApp number.
 
@@ -185,7 +184,7 @@ For short messages (≤ 80 chars) typed instead of tapped. They work with no AI.
 | `hours` | “opening/working hours”, “what time do you open”, `ساعات العمل` | |
 | `contact` | “your phone/contact number”, “WhatsApp”, “your address”, `واتساب`, `عنوانكم` | “I left my phone number in the form” |
 | `complaint` | “complaint/complain”, `شكوى`, `أشتكي` | mood words like “terrible”, “unhappy” |
-| `lost_found` | “left/lost/forgot my bag/phone/wallet/…”, `نسيت حقيبتي` | “phone number”, generic words |
+| `careers` | “careers”, “vacancies”, “hiring”, “apply for a job”, “my CV”, `وظيفة`, `توظيف` | a bare “job” (“good job, thanks”) |
 
 ### Chit-chat
 
@@ -203,8 +202,19 @@ Two forms, defined in `config/guidedForms.js`:
 
 | Form | Steps | Reference |
 |---|---|---|
-| `complaint` | trip/booking number → date → what happened | `CMP-XXXXXXXX` |
-| `lost_found` | trip/bus number → date → time → seat (skippable) → item description | `LF-XXXXXXXX` |
+| `complaint` | trip/booking number → date → what happened → photo (optional file: JPG/PNG/WebP) | `CMP-XXXXXXXX` |
+| `career` | job or field → CV (required file: PDF/Word, 10 MB) | `JOB-XXXXXXXX` |
+
+### File steps
+
+A step with `file: { accept, maxMb, optional }` asks for an upload instead of text:
+
+1. Every reply whose next step is a file step carries `upload: { accept, maxMb, optional }`; the website shows a paperclip button. `GET /chat/history` returns it too, so it survives a reload.
+2. The website calls `POST /chat/upload { conversationId, contentType, size }`. It only answers while the chat is `ai_handling` and waiting on a file step that accepts that type and size (otherwise 409/400). The browser PUTs the file straight to the private R2 bucket under `chat/<conversationId>/<uuid>.<ext>`.
+3. The website sends `POST /chat/message { conversationId, attachment: { key, name } }`. The server checks the key belongs to this conversation and its extension is accepted, takes the content type from the extension, and stores it on the message and in the form.
+4. A message with an attachment goes straight to the form; the human-request and safety checks never see the filename.
+5. Typed text on a required file step re-explains how to attach; on an optional step “skip” moves on.
+6. Staff open files from admin Reports through `GET /uploads/private?key=` (5-minute link, downloads as an attachment). An hourly sweep deletes chat files older than a day that no report keeps (cancelled forms).
 
 How it works:
 
@@ -213,8 +223,6 @@ How it works:
 3. On the last step a **`Report`** is created (name + phone from the customer record, SLA hours from `Settings.complaintSlaHours`, default 48) and the customer gets the reference number and expected response time.
 4. Staff are told immediately: Web Push (`/reports`), and a `report:new` socket event that shows a toast in the admin.
 5. Safety words in any answer still escalate (the safety check runs first).
-
-Photos are **not** collected in chat; the thank-you message tells the customer to send them on WhatsApp quoting the reference.
 
 Admin side: `GET /reports?type=&status=` and `PATCH /reports/:id` (`new` → `in_progress` → `resolved`), both admin-only. The Reports page flags reports past their SLA as **Overdue**.
 
@@ -344,10 +352,11 @@ The session, message and history endpoints are rate-limited to 60 requests/minut
 | `GET /chat/guided?lang=` | public | Welcome text + localised menu. |
 | `GET /chat/options?lang=` | public | Menu only. |
 | `POST /chat/session` `{ name, phone, email?, lang? }` | public | Create/refresh the customer and open a conversation. |
-| `POST /chat/message` `{ conversationId, text?, choiceId?, lang? }` | public | The pipeline in §3. Returns `answer`, `messageId`, `options`, `reason`, `escalated`, `status`, `systemMessage`. |
+| `POST /chat/message` `{ conversationId, text?, choiceId?, attachment?, lang? }` | public | The pipeline in §3. Returns `answer`, `messageId`, `options`, `reason`, `escalated`, `status`, `systemMessage`, `upload`. |
+| `POST /chat/upload` `{ conversationId, contentType, size }` | public, only on a file step | Presigned PUT into the private bucket (see §6). |
 | `GET /chat/history?conversationId=&phone=` | phone check | Restore an open chat. |
 | `GET/PATCH/DELETE /conversations…` | admin JWT | Inbox data, close, delete. |
-| `GET /reports`, `PATCH /reports/:id` | admin JWT | Complaints & lost items. |
+| `GET /reports`, `PATCH /reports/:id` | admin JWT | Complaints & job applications (with file downloads). |
 | `/kb…`, `/settings…` | admin JWT | Knowledge base and company settings. |
 
 Only `name` and `phone` are required to chat; `email` is optional.
@@ -370,11 +379,10 @@ Only `name` and `phone` are required to chat; `email` is optional.
 ## 14. Admin panel (dam-admin)
 
 - **Inbox:** live list of waiting/claimed/closed chats; claim, reply, close. Each bubble is labelled Customer / Durra AI / Agent / System.
-- **Reports:** complaints and lost items with status, SLA overdue flag, a link to the chat, and live toasts.
+- **Reports:** complaints and job applications with status, SLA overdue flag, attached files, a link to the chat, and live toasts.
 - **Knowledge:** add/edit/import FAQ rows; warns when an entry (same source ID) has no Arabic/English twin.
 - **Insights:** analytics card and the unanswered-questions list.
 - **Settings:** company details, hours, WhatsApp, SLAs, and the Durra AI greetings (EN/AR).
-- **Durra AI chat:** a playground that uses the real customer endpoints — handy for testing prompts and the KB.
 - **Push notifications:** new quote, new report, chat waiting, customer replied to my claimed chat.
 
 ---
@@ -408,7 +416,7 @@ npm test -- --runInBand        # if mongodb-memory-server is slow to start
 | Suite | Covers |
 |---|---|
 | `tests/integration/chat.test.js` | Sessions, FAQ answers, miss streak → handover, Arabic menus/chit-chat/human requests, language switching, shortcuts, `ESCALATE`, unknown/link buttons, resume + phone check, legacy greeting. |
-| `tests/integration/guidedForms.test.js` | Complaint and lost-item flows, cancel, safety escalation mid-form, stale form after escalation. |
+| `tests/integration/guidedForms.test.js` | Complaint (with optional photo) and job-application (CV) flows, attachment checks, cancel, safety escalation mid-form, stale form after escalation. |
 | `tests/integration/sockets.test.js` | Room delivery, escalation reaching admins, claim/reply. |
 | `tests/integration/lifecycle.test.js` | Idle auto-close. |
 | `tests/unit/retrieval.test.js` | Arabic normalisation, ranking, conversation memory, language/intent/human-request classifiers. |
@@ -442,7 +450,7 @@ To try it for real: run the backend with a Mongo URI and `GEMINI_API_KEY`, run t
 
 ## 18. Known limits
 
-- No photo/file upload in chat (customers are told to use WhatsApp).
+- Files are accepted only inside form file steps (CV, complaint photo); there is no general “attach anything” button.
 - Durra AI only knows what is in the FAQ and Settings — it has no live fares, schedules or booking data, so it routes those to the quote form or a person.
 - Guided answers are fixed text; update them in code (or move them to the database if staff need to edit them).
 - Language detection is script-based (Arabic vs Latin) and needs at least 3 letters.

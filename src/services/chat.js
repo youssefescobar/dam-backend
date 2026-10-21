@@ -35,6 +35,7 @@ import { logUnanswered } from '../models/UnansweredQuestion.js';
 import { isOpenNow, nextOpeningText } from './officeHours.js';
 import { Report } from '../models/Report.js';
 import {
+  currentStep,
   formIntro,
   getForm,
   isFlowCancel,
@@ -42,7 +43,9 @@ import {
   makeRefNumber,
   reportDoneText,
   stepPrompt,
+  stepUpload,
 } from '../config/guidedForms.js';
+import { contentTypeForExt } from './storage.js';
 
 /** After this many unanswered turns in a row, hand over to a person. */
 const MAX_UNSURE_STREAK = 3;
@@ -118,6 +121,7 @@ export async function getConversationForResume(conversationId, phone) {
       : flowActive
         ? localizeOptions([EXTRA_OPTIONS.cancel_flow], lang)
         : menuOptions(lang),
+    upload: flowActive && !human ? stepUpload(currentStep(conversation)) : null,
   };
 }
 
@@ -142,14 +146,15 @@ function resolveChoice(input) {
  *   customerPhone?: string,
  *   text?: string,
  *   choiceId?: string,
+ *   attachment?: { key: string, name?: string },
  *   lang?: string,
  * }} input
  */
 export async function handleChatMessage(input) {
   const typed = (input.text && String(input.text).trim()) || '';
-  let choiceId = resolveChoice(input);
+  let choiceId = input.attachment ? null : resolveChoice(input);
 
-  if (!typed && !choiceId) {
+  if (!typed && !choiceId && !input.attachment) {
     const err = new Error('text or choiceId is required');
     err.status = 400;
     throw err;
@@ -164,6 +169,8 @@ export async function handleChatMessage(input) {
     await conversation.save();
   }
 
+  const file = input.attachment ? checkAttachment(conversation, input.attachment) : null;
+
   // Language: what they type wins, then the site locale, then what we stored.
   // (Not mid-form: a reference like "BK-4821" must not flip the language.)
   let lang = normalizeLang(input.lang || conversation.language);
@@ -174,6 +181,7 @@ export async function handleChatMessage(input) {
   const choiceLabel = ALL_TOPIC_OPTIONS.find((o) => o.id === choiceId);
   const messageText =
     typed ||
+    file?.name ||
     (choiceLabel ? (lang === 'ar' ? choiceLabel.labelAr : choiceLabel.label) : '') ||
     choiceId;
 
@@ -181,6 +189,7 @@ export async function handleChatMessage(input) {
     conversationId: conversation._id,
     sender: 'customer',
     text: messageText,
+    attachment: file,
   });
 
   await bumpConversationActivity(conversation, 'customer');
@@ -208,19 +217,23 @@ export async function handleChatMessage(input) {
     };
   }
 
+  let settings = null;
+  try {
+    settings = await getCompanySettings();
+  } catch {
+    /* optional */
+  }
+
+  // An uploaded file answers the current form step. It skips the text checks below,
+  // so a file named "accident.jpg" or "emergency_CV.pdf" can't trigger a handover.
+  if (file) return continueFlow(conversation, '', settings, lang, file);
+
   if (choiceId === 'human' || isExplicitHumanRequest(typed)) {
     return escalate(conversation, 'explicit_human_request', undefined, lang);
   }
 
   if (isImmediateSafetyEscalation(typed)) {
     return escalate(conversation, 'safety_critical', undefined, lang);
-  }
-
-  let settings = null;
-  try {
-    settings = await getCompanySettings();
-  } catch {
-    /* optional */
   }
 
   // Mid-form: a menu click abandons the form; typed text answers the current step.
@@ -241,7 +254,7 @@ export async function handleChatMessage(input) {
     }
   }
 
-  // Short keyword shortcuts (quote, hours, contact, complaint, lost item) work without the LLM.
+  // Short keyword shortcuts (quote, hours, contact, complaint, careers) work without the LLM.
   if (!choiceId && typed) {
     const intent = detectIntent(typed);
     if (intent) choiceId = intent;
@@ -360,7 +373,23 @@ async function recentHistory(conversationId, limit = 9) {
   return rows.reverse().map((m) => ({ role: m.sender === 'customer' ? 'user' : 'assistant', text: m.text }));
 }
 
-/* ---------- Guided forms (complaint / lost item) ---------- */
+/* ---------- Guided forms (complaint / job application) ---------- */
+
+/**
+ * Validate a file the customer says they uploaded. The key must be one /chat/upload made
+ * for this conversation, and its type must be one the current form step accepts.
+ * Content type comes from the key, never from the client.
+ */
+function checkAttachment(conversation, attachment) {
+  const fail = (message) => Object.assign(new Error(message), { status: 400 });
+  const step = currentStep(conversation);
+  if (!step?.file) throw fail('Not expecting a file right now');
+  const m = new RegExp(`^chat/${conversation._id}/[a-f0-9-]{36}\\.([a-z0-9]+)$`).exec(String(attachment.key || ''));
+  const contentType = m && contentTypeForExt(m[1]);
+  if (!contentType || !step.file.accept.includes(contentType)) throw fail('This file type is not accepted here');
+  const name = String(attachment.name || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 120) || `file.${m[1]}`;
+  return { key: attachment.key, name, contentType };
+}
 
 async function startFlow(conversation, type, lang) {
   const form = getForm(type);
@@ -369,11 +398,12 @@ async function startFlow(conversation, type, lang) {
   return replyAi(conversation, `${formIntro(form, lang)}\n\n${stepPrompt(form.steps[0], lang)}`, {
     reason: 'flow_started',
     options: localizeOptions([EXTRA_OPTIONS.cancel_flow], lang),
+    upload: stepUpload(form.steps[0]),
     lang,
   });
 }
 
-async function continueFlow(conversation, text, settings, lang) {
+async function continueFlow(conversation, text, settings, lang, file = null) {
   const form = getForm(conversation.flow.type);
   if (!form) {
     conversation.flow = null;
@@ -387,7 +417,21 @@ async function continueFlow(conversation, text, settings, lang) {
 
   const step = form.steps[conversation.flow.step];
   const data = { ...(conversation.flow.data || {}) };
-  data[step.key] = isFlowSkip(text) ? '' : String(text).trim().slice(0, 1000);
+  if (step.file) {
+    if (file) data[step.key] = file;
+    else if (step.file.optional && isFlowSkip(text)) data[step.key] = null;
+    else {
+      // Typed text where a file is needed: explain, and keep waiting for the file.
+      return replyAi(conversation, pickText(step.hint, lang), {
+        reason: 'flow_step',
+        options: localizeOptions([EXTRA_OPTIONS.cancel_flow], lang),
+        upload: stepUpload(step),
+        lang,
+      });
+    }
+  } else {
+    data[step.key] = isFlowSkip(text) ? '' : String(text).trim().slice(0, 1000);
+  }
   const nextIndex = conversation.flow.step + 1;
 
   if (nextIndex < form.steps.length) {
@@ -396,6 +440,7 @@ async function continueFlow(conversation, text, settings, lang) {
     return replyAi(conversation, stepPrompt(form.steps[nextIndex], lang), {
       reason: 'flow_step',
       options: localizeOptions([EXTRA_OPTIONS.cancel_flow], lang),
+      upload: stepUpload(form.steps[nextIndex]),
       lang,
     });
   }
@@ -420,15 +465,20 @@ async function continueFlow(conversation, text, settings, lang) {
     incidentTime: data.incidentTime || '',
     seat: data.seat || '',
     description: data.description || '',
-    slaHours,
+    position: data.position || '',
+    attachments: form.steps
+      .filter((s) => s.file && data[s.key])
+      .map((s) => ({ field: s.key, ...data[s.key] })),
+    // The response promise is for complaints; applications are answered only if there's an opening.
+    slaHours: form.reportType === 'complaint' ? slaHours : null,
   });
 
   conversation.flow = null;
   await conversation.save();
 
   notifyAdmins({
-    title: form.reportType === 'complaint' ? 'New complaint' : 'New lost item report',
-    body: `${refNumber} · ${customer?.name || 'Customer'}${data.tripNumber ? ` · trip ${data.tripNumber}` : ''}`,
+    title: form.staffTitle,
+    body: `${refNumber} · ${customer?.name || 'Customer'}${data.tripNumber ? ` · trip ${data.tripNumber}` : ''}${data.position ? ` · ${data.position}` : ''}`,
     data: {
       type: 'report',
       reportId: report._id.toString(),
@@ -441,7 +491,7 @@ async function continueFlow(conversation, text, settings, lang) {
 
   return replyAi(
     conversation,
-    reportDoneText({ form, refNumber, slaHours, whatsapp: settings?.whatsappNumber, lang }),
+    reportDoneText({ form, refNumber, slaHours, lang }),
     { reason: 'flow_done', options: menuOptions(lang), lang },
   );
 }
@@ -489,6 +539,7 @@ async function replyAi(conversation, answer, extra = {}) {
     provider: extra.provider,
     faqCount: extra.faqCount,
     detail: extra.detail || null,
+    upload: extra.upload || null,
   };
 }
 

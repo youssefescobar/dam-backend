@@ -42,12 +42,12 @@ export const ALL_TOPIC_OPTIONS = [
   { id: 'hours', label: 'Business hours', labelAr: 'ساعات العمل' },
   { id: 'contact', label: 'Contact us', labelAr: 'تواصل معنا' },
   { id: 'complaint', label: 'Make a complaint', labelAr: 'تقديم شكوى' },
-  { id: 'lost_found', label: 'Lost an item', labelAr: 'مفقودات' },
+  { id: 'careers', label: 'Careers', labelAr: 'الوظائف' },
   { id: 'human', label: 'Talk to a human', labelAr: 'التحدث مع موظف' },
 ];
 
 /** Menu buttons customers see (kept to five). Order matters. Other topics stay reachable by typing. */
-const MENU_IDS = ['quote', 'hajj', 'airport', 'complaint', 'human'];
+const MENU_IDS = ['quote', 'hajj', 'airport', 'complaint', 'careers', 'human'];
 export const MAIN_MENU_OPTIONS = MENU_IDS.map((id) => ALL_TOPIC_OPTIONS.find((o) => o.id === id));
 
 /** Buttons that are not menu topics. `href` options are links the UI opens. */
@@ -174,7 +174,7 @@ export const GUIDED_NODES = {
   },
   // Handled by the guided form flow in services/chat.js (config/guidedForms.js).
   complaint: { startFlow: 'complaint' },
-  lost_found: { startFlow: 'lost_found' },
+  careers: { startFlow: 'career' },
   cancel_flow: {
     answer: {
       en: 'No problem — I’ve cancelled that. What else can I help with?',
@@ -230,15 +230,14 @@ export function findChoiceIdByLabel(text) {
 
 const INTENTS = [
   {
-    id: 'lost_found',
-    // A physical item left/lost on a trip. "phone number" and generic words are excluded
-    // so "I left my phone number in the form" or "نسيت أن أسأل عن شيء" don't start a report.
-    re: /\b(lost|left|forgot|forgotten|misplaced)\b[^.!?\n]{0,30}\b(bag|bags|backpack|suitcase|phone(?!\s*(number|no\b|#))|wallet|luggage|passport|laptop|keys?|jacket|glasses)\b|\blost (and|&) found\b|(نسيت|ضاع|ضاعت|ضاع مني|فقدت|ضيعت)\s+(\S+\s+){0,2}(حقيبة|حقيبتي|شنطة|شنطتي|جوال|جوالي|هاتف|هاتفي|محفظة|محفظتي|جواز|جوازي|نظارة|نظارتي|مفاتيح|مفاتيحي|أغراضي|اغراضي)|مفقودات/i,
-  },
-  {
     id: 'complaint',
     // Explicit complaint words only; mood words ("terrible", "unhappy") are left to the LLM.
     re: /\b(complain\w*|complaint)\b|شكوى|أشتكي|اشتكي|اشتكى|أقدم شكوى/i,
+  },
+  {
+    id: 'careers',
+    // Clear job-seeking words only; a bare "job" ("good job, thanks") must not start an application.
+    re: /\b(careers?|vacanc(y|ies)|hiring|job (opening|opportunit|vacanc)\w*|apply for (a |the )?(job|position|role)|looking for (a )?(job|work)|send (my )?(cv|resume)|my (cv|resume))\b|وظيفة|وظائف|توظيف|سيرتي الذاتية|السيرة الذاتية/i,
   },
   {
     id: 'quote',
