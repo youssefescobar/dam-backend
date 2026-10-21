@@ -6,6 +6,8 @@ import { validateBody } from '../middleware/validate.js';
 import { getConversationForResume, handleChatMessage, startChatSession } from '../services/chat.js';
 import { REPLIES, getWelcomePayload, menuOptions, normalizeLang, pickText } from '../config/guidedChat.js';
 import { getCompanySettings } from '../models/Settings.js';
+import { Conversation } from '../models/Conversation.js';
+import { CHAT_TYPES, presignUpload } from '../services/storage.js';
 
 const langSchema = z.enum(['en', 'ar']).optional();
 
@@ -110,6 +112,31 @@ router.get('/history', chatLimiter, async (req, res, next) => {
     );
     if (!result) return res.status(404).json({ error: 'Conversation not found' });
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+const uploadSchema = z.object({
+  conversationId: z.string().regex(/^[a-f0-9]{24}$/, 'invalid conversation'),
+  contentType: z.enum(CHAT_TYPES, { message: 'only JPG, PNG, WebP, PDF or Word files' }),
+  size: z.number().int().positive().max(10 * 1024 * 1024, 'file is larger than 10 MB'),
+  lang: langSchema,
+});
+
+/** Presign a private upload (CV, photo of a lost item, …) for an open conversation. */
+router.post('/upload', chatLimiter, customerLimiter, validateBody(uploadSchema), async (req, res, next) => {
+  try {
+    const { conversationId, contentType, size } = req.body;
+    const open = await Conversation.exists({ _id: conversationId, status: { $ne: 'closed' } });
+    if (!open) return res.status(404).json({ error: 'Conversation not found' });
+    const { key, uploadUrl, headers } = await presignUpload({
+      bucket: 'private',
+      prefix: `chat/${conversationId}`,
+      contentType,
+      size,
+    });
+    res.json({ key, uploadUrl, headers });
   } catch (err) {
     next(err);
   }
