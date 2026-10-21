@@ -346,8 +346,8 @@ describe('POST /chat/session & /chat/message', () => {
     await Settings.create({
       _id: 'company',
       botGreetingEn:
-        'Welcome to Durrah Al-Munawwara Transport. How can I help? Choose booking or quote, trip follow-up, Hajj & Umrah, corporate transport, international, complaint or lost items, or talk to an agent.',
-      botGreetingAr: 'أهلاً بك في درة المنورة للنقل. كيف أستطيع مساعدتك؟ يمكنك اختيار حجز أو عرض سعر، متابعة رحلة، الحج والعمرة، نقل الشركات، النقل الدولي، شكوى أو مفقودات، أو التحدث مع موظف.',
+        'Welcome to Durrah Al-Munawwara Transport. How can I help? Choose booking or quote, trip follow-up, Hajj & Umrah, corporate transport, international, complaint, or talk to an agent.',
+      botGreetingAr: 'أهلاً بك في درة المنورة للنقل. كيف أستطيع مساعدتك؟ يمكنك اختيار حجز أو عرض سعر، متابعة رحلة، الحج والعمرة، نقل الشركات، النقل الدولي، شكوى، أو التحدث مع موظف.',
     });
     expect((await request(app).get('/chat/guided?lang=en')).body.answer).toMatch(/Durra AI/);
     expect((await request(app).get('/chat/guided?lang=ar')).body.answer).toMatch(/دُرّة AI/);

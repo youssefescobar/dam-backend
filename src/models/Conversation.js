@@ -36,7 +36,7 @@ const conversationSchema = new mongoose.Schema(
     language: { type: String, enum: ['en', 'ar'], default: 'en' },
     /** Consecutive turns Durra AI could not answer; resets on any good answer. */
     unsureStreak: { type: Number, default: 0 },
-    /** Active guided form (complaint / lost & found), or null. */
+    /** Active guided form (complaint / career), or null. */
     flow: {
       type: new mongoose.Schema(
         {

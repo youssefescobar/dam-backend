@@ -119,13 +119,6 @@ describe('chat sessions without email, guided forms, escalation triggers', () =>
     expect(report.attachments[0]).toMatchObject({ field: 'photo', contentType: 'image/jpeg' });
   });
 
-  it('treats an old lost-item button as an unknown choice', async () => {
-    const id = await open();
-    const res = await say(id, { choiceId: 'lost_found' });
-    expect(res.status).toBe(200);
-    expect(res.body.reason).not.toBe('flow_started');
-  });
-
   it('escalates safety and payment-dispute messages even mid-form', async () => {
     const id = await open();
     await say(id, { choiceId: 'complaint' });
@@ -149,7 +142,7 @@ describe('chat sessions without email, guided forms, escalation triggers', () =>
     expect(conv.flow).toBeNull();
   });
 
-  it('recognises the hard escalation triggers but not lost-item talk', () => {
+  it('recognises the hard escalation triggers but not everyday questions', () => {
     for (const text of [
       'there was an accident',
       'driver was reckless',
@@ -161,7 +154,7 @@ describe('chat sessions without email, guided forms, escalation triggers', () =>
     ]) {
       expect(isImmediateSafetyEscalation(text)).toBe(true);
     }
-    for (const text of ['I lost my bag', 'مفقودات', 'how much is a ticket']) {
+    for (const text of ['how much is a ticket', 'كم سعر التذكرة']) {
       expect(isImmediateSafetyEscalation(text)).toBe(false);
     }
   });

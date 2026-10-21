@@ -13,11 +13,10 @@ const attachmentSchema = new mongoose.Schema(
 
 /**
  * Complaint or job application collected through the guided chat flow.
- * `lost_found` is no longer created; it stays so older reports still load and update.
  */
 const reportSchema = new mongoose.Schema(
   {
-    type: { type: String, enum: ['complaint', 'career', 'lost_found'], required: true, index: true },
+    type: { type: String, enum: ['complaint', 'career'], required: true, index: true },
     refNumber: { type: String, required: true, unique: true, index: true },
     customerId: {
       type: mongoose.Schema.Types.ObjectId,
