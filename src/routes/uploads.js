@@ -39,7 +39,8 @@ router.get('/private', requireAuth, async (req, res, next) => {
   try {
     const key = String(req.query.key || '');
     if (!/^chat\/[a-f0-9]{24}\/[a-f0-9-]{36}\.[a-z0-9]+$/.test(key)) throw new HttpError(400, 'Invalid file key');
-    res.json({ url: await presignPrivateRead(key) });
+    const name = String(req.query.name || '').replace(/[\r\n]/g, '').slice(0, 120);
+    res.json({ url: await presignPrivateRead(key, name) });
   } catch (err) {
     next(err);
   }

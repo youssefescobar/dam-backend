@@ -118,14 +118,19 @@ export async function deleteFiles(bucket, keys) {
 }
 
 /** Short-lived download link for a private file, sent as an attachment so it never renders inline. */
-export async function presignPrivateRead(key) {
+export async function presignPrivateRead(key, filename = '') {
+  // Saved under the customer's original name (ASCII fallback + UTF-8 for Arabic names).
+  const ascii = filename.replace(/[^\x20-\x7e]|["\\]/g, '_');
+  const disposition = filename
+    ? `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+    : 'attachment';
   const client = r2();
   return getSignedUrl(
     client,
     new GetObjectCommand({
       Bucket: process.env.R2_PRIVATE_BUCKET,
       Key: key,
-      ResponseContentDisposition: 'attachment',
+      ResponseContentDisposition: disposition,
     }),
     { expiresIn: TTL_SECONDS }
   );
