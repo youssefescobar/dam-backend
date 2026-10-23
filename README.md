@@ -53,7 +53,7 @@ npx web-push generate-vapid-keys
 - `POST /chat/message`
 - `POST /push/subscribe` · `POST /push/unsubscribe` · `GET /push/vapid-public-key`
 
-Socket events: `chat:message` (public), `join:admin-queue` / `admin:claim` / `admin:message` (**admin JWT** via `auth.token`), `conversation:escalated`, `conversation:closed`, `quote:new`.
+Socket events: `join:conversation` (public, needs the owner's phone), `join:admin-queue` / `admin:claim` / `admin:message` (**admin JWT** via `auth.token`), `conversation:escalated`, `conversation:closed`, `quote:new`.
 
 ## Deploy (GitHub Actions → DigitalOcean Droplet)
 

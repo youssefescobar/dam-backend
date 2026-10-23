@@ -17,6 +17,7 @@ const unansweredQuestionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 unansweredQuestionSchema.index({ key: 1, language: 1 }, { unique: true });
+unansweredQuestionSchema.index({ status: 1, lastAskedAt: -1 });
 
 export const UnansweredQuestion =
   mongoose.models.UnansweredQuestion || mongoose.model('UnansweredQuestion', unansweredQuestionSchema);

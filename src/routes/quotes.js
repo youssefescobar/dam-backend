@@ -89,6 +89,8 @@ const patchQuoteSchema = z.object({
   priority: z.enum(['normal', 'high', 'urgent']).optional(),
 });
 
+const QUOTES_LIST_MAX = 1000;
+
 const hashToken = (t) => createHash('sha256').update(String(t)).digest('hex');
 
 /** Customer-editable fields, shared by create and edit so both stay in sync. */
@@ -125,7 +127,6 @@ const quoteFields = (data) => ({
   needsAirportReception: Boolean(data.needsAirportReception),
   preferredContactChannel: data.preferredContactChannel || '',
   consent: Boolean(data.consent),
-  priority: data.priority || 'normal',
 });
 
 const router = Router();
@@ -192,6 +193,8 @@ router.post('/', quoteIpLimiter, validateBody(createQuoteSchema), quotePhoneLimi
       customerId: customer._id,
       conversationId: conversation._id,
       ...quoteFields(data),
+      // Priority is staff-owned after this; a customer edit (PUT) never touches it.
+      priority: data.priority || 'normal',
       assignedDepartment,
       editTokenHash: hashToken(editToken),
       status: 'new',
@@ -301,7 +304,9 @@ router.get('/', requireAuth, async (req, res, next) => {
     if (req.query.assignedDepartment) {
       filter.assignedDepartment = String(req.query.assignedDepartment);
     }
-    const quotes = await Quote.find(filter).sort({ createdAt: -1 }).lean();
+    // Newest first, capped so the admin page stays fast as quotes pile up (?limit= up to 1000).
+    const limit = Math.min(Math.max(Number(req.query.limit) || QUOTES_LIST_MAX, 1), QUOTES_LIST_MAX);
+    const quotes = await Quote.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
     res.json({ quotes });
   } catch (err) {
     next(err);

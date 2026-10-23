@@ -110,6 +110,10 @@ const quoteSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Admin list (newest first, by status) and the reminder sweep.
+quoteSchema.index({ status: 1, createdAt: -1 });
+quoteSchema.index({ createdAt: -1 });
+
 quoteSchema.set('toJSON', {
   transform: (_doc, ret) => {
     delete ret.editTokenHash;
