@@ -20,7 +20,7 @@
     },
     {
       "key": "adminPassword",
-      "value": "changeme123"
+      "value": "<your-password>"
     },
     {
       "key": "quoteId",
@@ -147,7 +147,7 @@
               "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
             },
             "url": "{{baseUrl}}/auth/login",
-            "description": "Admin login. Returns JWT. On success, saves `token` to collection variables.\n\nSeed default (after `npm run seed:admin`): `admin@damic.local` / `changeme123`."
+            "description": "Admin login. Returns JWT. On success, saves `token` to collection variables.\n\nSeed default (after `npm run seed:admin`): `admin@damic.local` with the password you set in `SEED_ADMIN_PASSWORD`."
           },
           "response": [
             {
@@ -162,7 +162,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"admin@damic.local\",\n  \"password\": \"changeme123\"\n}"
+                  "raw": "{\n  \"email\": \"admin@damic.local\",\n  \"password\": \"{{adminPassword}}\"\n}"
                 },
                 "url": "{{baseUrl}}/auth/login"
               },
