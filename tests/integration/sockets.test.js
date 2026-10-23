@@ -14,6 +14,8 @@ import { Customer } from '../../src/models/Customer.js';
 import { Admin } from '../../src/models/Admin.js';
 import { setLlmOverride, resetLlmOverride } from '../../src/services/llm.js';
 import { startChatSession } from '../../src/services/chat.js';
+import { clearFaqCache } from '../../src/services/faqPrompt.js';
+import { createApp } from '../../src/app.js';
 
 function waitFor(socket, event, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
@@ -30,6 +32,22 @@ function tokenFor(adminId) {
     { sub: adminId.toString(), role: 'admin' },
     process.env.JWT_SECRET || 'test-jwt-secret'
   );
+}
+
+/** POST /chat/message, the way the website sends customer messages. */
+async function send(baseUrl, body) {
+  const res = await fetch(`${baseUrl}/chat/message`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+/** Join the conversation room with the owner's phone, as the website does. */
+async function join(socket, conversationId, phone) {
+  const ack = await new Promise((r) => socket.emit('join:conversation', { conversationId, phone }, r));
+  expect(ack.ok).toBe(true);
 }
 
 async function session(overrides = {}) {
@@ -52,7 +70,8 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     mem = await MongoMemoryServer.create();
     await connectDb(mem.getUri());
 
-    httpServer = createServer();
+    // Customers send over HTTP (as the website does) and listen on the socket.
+    httpServer = createServer(createApp());
     ioServer = new Server(httpServer, { cors: { origin: '*' } });
     initChatSockets(ioServer);
 
@@ -76,6 +95,7 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     for (const key of Object.keys(collections)) {
       await collections[key].deleteMany({});
     }
+    clearFaqCache();
     resetLlmOverride();
   });
 
@@ -97,10 +117,10 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
         if (p.sender === 'ai') resolve(p);
       });
     });
-    client.emit('chat:message', {
+    await join(client, conversation._id.toString(), '+15555551001');
+    await send(baseUrl, {
       text: 'Do you operate on Friday evenings?',
       conversationId: conversation._id.toString(),
-      customerPhone: '+15555551001',
     });
 
     const reply = await replyPromise;
@@ -133,10 +153,9 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     await waitFor(customer, 'connect');
 
     const escalatedPromise = waitFor(adminClient, 'conversation:escalated');
-    customer.emit('chat:message', {
+    await send(baseUrl, {
       text: 'talk to a human',
       conversationId: conversation._id.toString(),
-      customerPhone: '+15555551002',
     });
 
     const event = await escalatedPromise;
@@ -248,10 +267,9 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
 
     const customer = ioc(baseUrl, { transports: ['websocket'], forceNew: true });
     await waitFor(customer, 'connect');
-    customer.emit('chat:message', {
+    await send(baseUrl, {
       text: 'Are you still there?',
       conversationId: conversation._id.toString(),
-      customerPhone: '+15555551004',
     });
 
     const alert = await alertPromise;
@@ -284,20 +302,13 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
     const client = ioc(baseUrl, { transports: ['websocket'], forceNew: true });
     await waitFor(client, 'connect');
 
-    const ack = await new Promise((resolve) => {
-      client.emit(
-        'chat:message',
-        {
-          text: 'Hello again',
-          conversationId: conversation._id.toString(),
-          customerPhone: '+15555551005',
-        },
-        (response) => resolve(response)
-      );
+    const res = await send(baseUrl, {
+      text: 'Hello again',
+      conversationId: conversation._id.toString(),
     });
 
-    expect(ack.ok).toBe(true);
-    expect(ack.status).toBe('ai_handling');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ai_handling');
 
     client.close();
   });
@@ -317,11 +328,18 @@ describe('Socket.io chat & escalation (Phase 4)', () => {
       client.emit('join:conversation', { conversationId: id, phone: '555-555-1010' }, r)
     );
     expect(allowed.ok).toBe(true);
+    client.close();
+  });
 
-    const ack = await new Promise((r) =>
-      client.emit('chat:message', { text: 'hi', conversationId: id, customerPhone: '+15550000000' }, r)
-    );
-    expect(ack.ok).toBe(false);
+  it('ignores chat:message over the socket (customers send over HTTP, which is rate-limited)', async () => {
+    const client = ioc(baseUrl, { transports: ['websocket'], forceNew: true });
+    await waitFor(client, 'connect');
+    const answered = await Promise.race([
+      new Promise((r) => client.emit('chat:message', { text: 'hi', customerName: 'X', customerPhone: '+15550000001' }, () => r(true))),
+      new Promise((r) => setTimeout(() => r(false), 500)),
+    ]);
+    expect(answered).toBe(false);
+    expect(await Customer.countDocuments()).toBe(0);
     client.close();
   });
 });

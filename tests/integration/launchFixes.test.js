@@ -129,3 +129,50 @@ describe('launch fixes', () => {
     });
   });
 });
+
+describe('follow-ups', () => {
+  let app;
+  let token;
+
+  beforeAll(async () => {
+    process.env.JWT_SECRET = 'test-jwt-secret-for-jest';
+    process.env.QUOTE_MAX_PER_PHONE = '1000';
+    await startTestDb();
+    app = createApp();
+  });
+
+  afterAll(async () => {
+    delete process.env.QUOTE_MAX_PER_PHONE;
+    await stopTestDb();
+  });
+
+  beforeEach(async () => {
+    await clearDb();
+    await Admin.create({ name: 'A', email: 'a@test.com', passwordHash: await bcrypt.hash('pw', 4) });
+    token = (await request(app).post('/auth/login').send({ email: 'a@test.com', password: 'pw' })).body.token;
+  });
+
+  it('keeps the staff priority when the customer edits their request', async () => {
+    const created = await request(app).post('/quotes').send(quote());
+    const id = created.body.quote._id;
+    await request(app).patch(`/quotes/${id}`).set('Authorization', `Bearer ${token}`).send({ priority: 'urgent' });
+
+    const edited = await request(app)
+      .put(`/quotes/${id}`)
+      .set('x-edit-token', created.body.editToken)
+      .send(quote({ passengers: 45 }));
+    expect(edited.status).toBe(200);
+    expect(edited.body.quote.passengers).toBe(45);
+    expect(edited.body.quote.priority).toBe('urgent');
+  });
+
+  it('caps the admin quotes list and honours ?limit', async () => {
+    for (let i = 0; i < 3; i += 1) await request(app).post('/quotes').send(quote({ pickup: `P${i}` }));
+    const res = await request(app).get('/quotes?limit=2').set('Authorization', `Bearer ${token}`);
+    expect(res.body.quotes).toHaveLength(2);
+    const [first, second] = res.body.quotes.map((q) => new Date(q.createdAt).getTime());
+    expect(first).toBeGreaterThanOrEqual(second);
+    const all = await request(app).get('/quotes').set('Authorization', `Bearer ${token}`);
+    expect(all.body.quotes).toHaveLength(3);
+  });
+});

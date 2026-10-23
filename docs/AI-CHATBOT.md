@@ -336,7 +336,7 @@ Customers join room `conversation:<id>`; agents join `admin-queue` (admin JWT re
 | `conversation:customer_message` | server → admin queue | for the assigned agent's notifications |
 | `conversation:closed` | server → admin queue | `reason: inactivity` |
 | `quote:new`, `report:new` | server → admin queue | the new quote / report |
-| `join:conversation`, `chat:message` | client → server | `chat:message` is an alternative to HTTP |
+| `join:conversation` | client → server | Listen to a chat (needs the owner's phone). Customers send messages over HTTP only |
 | `join:admin-queue`, `admin:claim`, `admin:message` | admin → server | acknowledged with `{ ok }` |
 
 `messageId` is the database id, so the website can de-duplicate the HTTP reply and the socket broadcast of the same message. The socket handler joins the room *before* processing, so a reply is delivered once.
@@ -454,5 +454,5 @@ To try it for real: run the backend with a Mongo URI and `GEMINI_API_KEY`, run t
 - Durra AI only knows what is in the FAQ and Settings — it has no live fares, schedules or booking data, so it routes those to the quote form or a person.
 - Guided answers are fixed text; update them in code (or move them to the database if staff need to edit them).
 - Language detection is script-based (Arabic vs Latin) and needs at least 3 letters.
-- Rate limiting covers HTTP only (per IP, plus per conversation/phone); the socket `chat:message` path is not limited. No satisfaction rating yet.
+- Customer messages go over HTTP only, rate-limited per IP plus per conversation/phone. No satisfaction rating yet.
 - The Reports page and the new chat flow have been verified in automated tests and a scripted browser run, not with long-term production traffic — watch the first days of real chats.

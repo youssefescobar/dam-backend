@@ -27,4 +27,8 @@ const messageSchema = new mongoose.Schema(
   { timestamps: { createdAt: true, updatedAt: false } }
 );
 
+// Chat history / recent turns, and the insights date range (was a full collection scan).
+messageSchema.index({ conversationId: 1, createdAt: 1 });
+messageSchema.index({ createdAt: 1, sender: 1 });
+
 export const Message = mongoose.models.Message || mongoose.model('Message', messageSchema);

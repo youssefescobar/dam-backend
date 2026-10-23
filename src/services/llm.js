@@ -108,8 +108,15 @@ export function buildContents(history, question) {
   return turns;
 }
 
+/** One model gets at most this long; the whole answer (all fallbacks and retries) gets LLM_DEADLINE_MS. */
+const MODEL_TIMEOUT_MS = 15000;
+const DEFAULT_DEADLINE_MS = 20000;
+
 async function callGemini({ question, context, history, lang }) {
   const key = process.env.GEMINI_API_KEY;
+  // The website gives up after 30 s, so stop well before that and show the friendly fallback.
+  const deadline = Date.now() + (Number(process.env.LLM_DEADLINE_MS) || DEFAULT_DEADLINE_MS);
+  const left = () => deadline - Date.now();
   const system = `${SYSTEM_PROMPT}\n\nThe customer is writing in ${lang === 'ar' ? 'Arabic' : 'English'}.\n\nFAQ:\n${context}`;
   const contents = buildContents(history, question);
   const errors = [];
@@ -117,13 +124,17 @@ async function callGemini({ question, context, history, lang }) {
   // Second pass only when every model said 503 (Google overload is usually brief).
   for (let pass = 0; pass < 2; pass += 1) {
     if (pass === 1) {
-      if (!errors.every((e) => /HTTP 503/.test(e.message))) break;
+      if (!errors.every((e) => /HTTP 503/.test(e.message)) || left() < 4000) break;
       await new Promise((r) => setTimeout(r, 1500));
     }
     for (const model of resolveGeminiModels()) {
+      if (left() < 1000) {
+        errors.push(new Error('time limit reached'));
+        break;
+      }
       try {
         const started = Date.now();
-        const answer = await callGeminiModel(key, model, system, contents);
+        const answer = await callGeminiModel(key, model, system, contents, Math.min(MODEL_TIMEOUT_MS, left()));
         logger.info({ model, ms: Date.now() - started }, 'Gemini answered');
         return { answer, model };
       } catch (err) {
@@ -139,7 +150,7 @@ async function callGemini({ question, context, history, lang }) {
   throw new Error(errors.map((e) => e.message).join('; ') || 'Gemini unavailable');
 }
 
-async function callGeminiModel(key, model, system, contents) {
+async function callGeminiModel(key, model, system, contents, timeoutMs) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const res = await fetch(url, {
     method: 'POST',
@@ -154,7 +165,7 @@ async function callGeminiModel(key, model, system, contents) {
         thinkingConfig: { thinkingLevel: 'minimal' },
       },
     }),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   if (!res.ok) {

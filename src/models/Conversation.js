@@ -52,6 +52,10 @@ const conversationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Inbox lists by status, and the idle-chat sweep.
+conversationSchema.index({ status: 1, lastActivityAt: 1 });
+conversationSchema.index({ status: 1, updatedAt: -1 });
+
 export const Conversation =
   mongoose.models.Conversation || mongoose.model('Conversation', conversationSchema);
 

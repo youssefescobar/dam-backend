@@ -1,6 +1,6 @@
 import { Conversation, bumpConversationActivity } from '../models/Conversation.js';
 import { Message } from '../models/Message.js';
-import { customerOwnsConversation, handleChatMessage } from '../services/chat.js';
+import { customerOwnsConversation } from '../services/chat.js';
 import { logger } from '../utils/logger.js';
 import { socketAuthMiddleware, requireSocketAdmin } from './auth.js';
 
@@ -19,22 +19,6 @@ export function emitToAdminQueue(event, payload) {
   if (io) {
     io.to('admin-queue').emit(event, payload);
   }
-}
-
-const SOCKET_CHAT_WINDOW_MS = 60 * 1000;
-
-/** Same per-minute cap as the HTTP per-customer limiter, counted per socket. */
-function socketChatAllowed(socket) {
-  const max = Number(process.env.CHAT_CUSTOMER_MAX_PER_MIN) || 20;
-  const now = Date.now();
-  const hits = (socket.data.chatHits || []).filter((t) => now - t < SOCKET_CHAT_WINDOW_MS);
-  if (hits.length >= max) {
-    socket.data.chatHits = hits;
-    return false;
-  }
-  hits.push(now);
-  socket.data.chatHits = hits;
-  return true;
 }
 
 /** Admins may watch any conversation; customers must prove ownership with their phone. */
@@ -77,55 +61,6 @@ export function initChatSockets(serverIo) {
       }
     });
 
-    socket.on('chat:message', async (payload = {}, ack) => {
-      try {
-        if (!socketChatAllowed(socket)) {
-          throw new Error('Too many messages, please slow down');
-        }
-        // Join first so the room broadcasts from handleChatMessage reach this socket
-        // (previously the reply was emitted twice: once to the room, once directly).
-        if (payload.conversationId) {
-          const owns = await mayJoinConversation(
-            socket,
-            String(payload.conversationId),
-            payload.customerPhone
-          );
-          if (!owns) throw new Error('Conversation not found');
-          await socket.join(`conversation:${payload.conversationId}`);
-        }
-
-        const result = await handleChatMessage({
-          text: payload.text,
-          conversationId: payload.conversationId,
-          customerName: payload.customerName,
-          customerEmail: payload.customerEmail,
-          customerPhone: payload.customerPhone,
-          customerContact: payload.customerContact,
-          choiceId: payload.choiceId,
-          lang: payload.lang,
-        });
-
-        const response = {
-          conversationId: result.conversation._id.toString(),
-          status: result.conversation.status,
-          escalated: result.escalated,
-          answer: result.answer,
-          messageId: result.messageId || null,
-          reason: result.reason || null,
-          systemMessage: result.systemMessage || null,
-          options: result.options || [],
-        };
-
-        // A brand-new conversation (no id in the payload) is only known now.
-        await socket.join(`conversation:${response.conversationId}`);
-
-        if (typeof ack === 'function') ack({ ok: true, ...response });
-      } catch (err) {
-        logger.error({ err: err.message }, 'chat:message failed');
-        if (typeof ack === 'function') ack({ ok: false, error: err.message });
-        socket.emit('error', { message: err.message });
-      }
-    });
     socket.on('admin:claim', async (payload = {}, ack) => {
       try {
         const admin = requireSocketAdmin(socket);

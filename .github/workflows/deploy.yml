@@ -7,7 +7,8 @@ on:
 
 concurrency:
   group: deploy-droplet
-  cancel-in-progress: true
+  # Queue deploys instead of cancelling one halfway (new code with old node_modules).
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -39,6 +40,8 @@ jobs:
             else
               REF=origin/main
             fi
+            # Remember what's running so a failed deploy can go back to it.
+            PREV=$(git rev-parse HEAD)
             git reset --hard "$REF"
 
             npm ci --omit=dev
@@ -63,6 +66,10 @@ jobs:
             if [ "$ok" -ne 1 ]; then
               echo "Health check failed after restart"
               pm2 logs dam-backend --lines 40 --nostream || true
+              echo "Rolling back to $PREV"
+              git reset --hard "$PREV"
+              npm ci --omit=dev
+              pm2 restart dam-backend --update-env
               exit 1
             fi
             head -c 200 /tmp/dam-health.json; echo
