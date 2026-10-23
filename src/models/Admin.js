@@ -18,6 +18,8 @@ const adminSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ['admin', 'agent'], default: 'admin' },
     pushSubscriptions: { type: [pushSubscriptionSchema], default: [] },
+    /** Login tokens issued before this are rejected, so a password change signs out other devices. */
+    passwordChangedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

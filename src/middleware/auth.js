@@ -17,7 +17,11 @@ export async function adminFromToken(token) {
     return null;
   }
   if (!payload?.sub) return null;
-  return Admin.findById(payload.sub).select('-passwordHash');
+  const admin = await Admin.findById(payload.sub).select('-passwordHash');
+  if (!admin) return null;
+  // JWT `iat` is in whole seconds; a token from the same second as the change still counts.
+  if (admin.passwordChangedAt && payload.iat < Math.floor(admin.passwordChangedAt.getTime() / 1000)) return null;
+  return admin;
 }
 
 /**
