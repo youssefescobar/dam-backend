@@ -209,7 +209,9 @@ describe('POST /chat/session & /chat/message', () => {
     expect(res.body.reason).toBe('llm_failure');
     expect(res.body.answer).toMatch(/trouble|menu|human|stuck/i);
     expect(res.body.options?.length).toBeGreaterThan(0);
-    expect(res.body.detail).toMatch(/timeout/i);
+    // The provider's error text stays in the server log, never in the public reply.
+    expect(res.body.detail).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toMatch(/timeout/i);
 
     const conv = await Conversation.findById(res.body.conversationId);
     expect(conv.status).toBe('ai_handling');

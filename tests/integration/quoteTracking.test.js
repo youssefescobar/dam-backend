@@ -36,14 +36,16 @@ describe('GET /quotes/track', () => {
   it('returns status for the right lead ID and phone, in any phone format', async () => {
     const res = await request(app).get('/quotes/track').query({ leadId: leadId.toLowerCase(), phone: '0501234567' });
     expect(res.status).toBe(200);
-    expect(res.body.tracking).toMatchObject({ leadId, status: 'new', quotedPrice: null, editable: true });
+    expect(res.body.tracking).toMatchObject({ leadId, status: 'new', editable: true });
     expect(res.body.tracking.customerContact).toBeUndefined();
   });
 
-  it('shows the price only once quoted', async () => {
+  it('shows the status but never the price', async () => {
     await Quote.updateOne({ _id: id }, { status: 'quoted', quotedPrice: 9000 });
     const res = await request(app).get('/quotes/track').query({ leadId, phone: '+966501234567' });
-    expect(res.body.tracking).toMatchObject({ status: 'quoted', quotedPrice: 9000, currency: 'SAR', editable: false });
+    expect(res.body.tracking).toMatchObject({ status: 'quoted', editable: false });
+    expect(res.body.tracking.quotedPrice).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toContain('9000');
   });
 
   it('gives the same 404 for a wrong phone or unknown lead', async () => {

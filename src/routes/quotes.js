@@ -6,31 +6,38 @@ import rateLimit from 'express-rate-limit';
 import { Quote } from '../models/Quote.js';
 import { findOrUpsertCustomer } from '../models/Customer.js';
 import { Conversation } from '../models/Conversation.js';
-import { Message } from '../models/Message.js';
 import { requireAuth } from '../middleware/auth.js';
+import { clientRateKey } from '../middleware/clientKey.js';
 import { validateBody } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errorHandler.js';
 import { notifyAdmins } from '../services/push.js';
 import { getCompanySettings } from '../models/Settings.js';
 
+/** Field length caps for the public quote form (generous; they only stop junk and abuse). */
+const NAME = 120;
+const PHONE = 40;
+const WORD = 60;
+const SHORT = 200;
+const LONG = 4000;
+
 const legSchema = z.object({
-  from: z.string().trim().min(1, 'leg from is required'),
-  to: z.string().trim().min(1, 'leg to is required'),
+  from: z.string().trim().min(1, 'leg from is required').max(SHORT),
+  to: z.string().trim().min(1, 'leg to is required').max(SHORT),
   date: z.string().trim().max(40).optional().default(''),
   time: z.string().trim().max(20).optional().default(''),
 });
 
 const createQuoteSchema = z.object({
-  customerName: z.string().min(1, 'customerName is required'),
-  customerContact: z.string().min(1, 'customerContact is required'),
-  customerEmail: z.string().email().optional().or(z.literal('')),
-  customerPhone: z.string().optional(),
-  pickup: z.string().min(1, 'pickup is required'),
-  dropoff: z.string().min(1, 'dropoff is required'),
+  customerName: z.string().min(1, 'customerName is required').max(NAME),
+  customerContact: z.string().min(1, 'customerContact is required').max(SHORT),
+  customerEmail: z.string().email().max(SHORT).optional().or(z.literal('')),
+  customerPhone: z.string().max(PHONE).optional(),
+  pickup: z.string().min(1, 'pickup is required').max(SHORT),
+  dropoff: z.string().min(1, 'dropoff is required').max(SHORT),
   date: z.coerce.date({ error: 'date is required' }),
-  vehicleType: z.string().min(1).default('standard'),
-  passengers: z.coerce.number().int().min(1, 'passengers must be at least 1'),
-  notes: z.string().optional().default(''),
+  vehicleType: z.string().min(1).max(WORD).default('standard'),
+  passengers: z.coerce.number().int().min(1, 'passengers must be at least 1').max(100000),
+  notes: z.string().max(LONG).optional().default(''),
   channel: z.enum(['web', 'whatsapp', 'phone', 'other']).optional().default('web'),
   language: z.enum(['ar', 'en']).optional(),
   customerType: z
@@ -46,22 +53,22 @@ const createQuoteSchema = z.object({
       'corporate',
     ])
     .optional(),
-  organization: z.string().optional().default(''),
-  email: z.string().email().optional().or(z.literal('')),
-  serviceType: z.string().optional().default(''),
-  originCity: z.string().optional().default(''),
-  destinationCity: z.string().optional().default(''),
+  organization: z.string().max(SHORT).optional().default(''),
+  email: z.string().email().max(SHORT).optional().or(z.literal('')),
+  serviceType: z.string().max(WORD).optional().default(''),
+  originCity: z.string().max(SHORT).optional().default(''),
+  destinationCity: z.string().max(SHORT).optional().default(''),
   returnDatetime: z.coerce.date().optional().nullable(),
-  tripType: z.string().optional().default(''),
-  busCount: z.coerce.number().int().min(1).optional().nullable(),
-  busClass: z.string().optional().default(''),
-  luggageNotes: z.string().optional().default(''),
-  accessibilityNeeds: z.string().optional().default(''),
-  specialRequirements: z.string().optional().default(''),
-  stops: z.string().optional().default(''),
+  tripType: z.string().max(WORD).optional().default(''),
+  busCount: z.coerce.number().int().min(1).max(10000).optional().nullable(),
+  busClass: z.string().max(WORD).optional().default(''),
+  luggageNotes: z.string().max(LONG).optional().default(''),
+  accessibilityNeeds: z.string().max(LONG).optional().default(''),
+  specialRequirements: z.string().max(LONG).optional().default(''),
+  stops: z.string().max(LONG).optional().default(''),
   legs: z.array(legSchema).max(10).optional().default([]),
-  departureTime: z.string().optional().default(''),
-  waitingHours: z.coerce.number().min(0).optional().nullable(),
+  departureTime: z.string().max(WORD).optional().default(''),
+  waitingHours: z.coerce.number().min(0).max(10000).optional().nullable(),
   needsSupervisors: z.boolean().optional().default(false),
   needsTracking: z.boolean().optional().default(false),
   needsBranding: z.boolean().optional().default(false),
@@ -121,30 +128,42 @@ const quoteFields = (data) => ({
   priority: data.priority || 'normal',
 });
 
-/** Customer-facing "your quote is priced" line, in SAR and the customer's language. */
-export function pricedMessage(quote) {
-  const ref = quote.leadId ? ` ${quote.leadId}` : '';
-  if (quote.language === 'ar') {
-    const amount = new Intl.NumberFormat('ar-SA', { maximumFractionDigits: 2 }).format(quote.quotedPrice);
-    return `تم تسعير طلبك${ref} بمبلغ ${amount} ريال سعودي. سيتواصل معك فريقنا إذا كان لديك أي استفسار.`;
-  }
-  const amount = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(quote.quotedPrice);
-  return `Your quote${ref} has been priced at SAR ${amount}. Our team will follow up if you have questions.`;
-}
-
 const router = Router();
 
-router.post('/', validateBody(createQuoteSchema), async (req, res, next) => {
+/**
+ * Spam guard for the public quote form. The website submits from its own server, so every
+ * visitor shares that server's IP: the per-phone limit is the real one (5 per 10 minutes),
+ * and the per-IP limit is only a high ceiling against scripts that rotate phone numbers.
+ */
+const quoteLimit = (limit, keyGenerator) =>
+  rateLimit({
+    windowMs: 10 * 60 * 1000,
+    limit,
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { xForwardedForHeader: false },
+    keyGenerator,
+    message: { error: 'Too many requests, please try again in a few minutes' },
+  });
+const quoteIpLimiter = quoteLimit(() => Number(process.env.QUOTE_MAX_PER_IP) || 60, clientRateKey);
+const quotePhoneLimiter = quoteLimit(
+  () => Number(process.env.QUOTE_MAX_PER_PHONE) || 5,
+  (req) => {
+    const b = req.body || {};
+    const phone = String(b.customerPhone || b.customerContact || '').replace(/\D/g, '').slice(-9);
+    return phone ? `quote-phone:${phone}` : clientRateKey(req);
+  }
+);
+
+router.post('/', quoteIpLimiter, validateBody(createQuoteSchema), quotePhoneLimiter, async (req, res, next) => {
   try {
     const data = req.body;
     const contact = data.customerContact.trim();
     const looksEmail = contact.includes('@');
-    const email = (
-      data.email ||
-      data.customerEmail ||
-      (looksEmail ? contact : `${contact.replace(/\W/g, '') || 'quote'}@quote.local`)
-    ).toLowerCase();
-    const phone = data.customerPhone || (!looksEmail ? contact : '+10000000000');
+    const email = (data.email || data.customerEmail || (looksEmail ? contact : '')).toLowerCase();
+    // The phone is the customer's identity. An email-only request is keyed by that email,
+    // so separate email-only customers never merge into one record.
+    const phone = data.customerPhone?.trim() || contact;
 
     const customer = await findOrUpsertCustomer({
       name: data.customerName,
@@ -254,13 +273,10 @@ router.get('/track', trackLeadLimiter, async (req, res, next) => {
       throw new HttpError(404, 'Request not found');
     }
 
-    const priced = quote.status === 'quoted' || quote.status === 'won';
     res.json({
       tracking: {
         leadId: quote.leadId,
         status: quote.status,
-        quotedPrice: priced ? quote.quotedPrice : null,
-        currency: 'SAR',
         pickup: quote.pickup,
         dropoff: quote.dropoff,
         date: quote.date,
@@ -315,26 +331,6 @@ router.patch('/:id', requireAuth, validateBody(patchQuoteSchema), async (req, re
     if (req.body.priority !== undefined) quote.priority = req.body.priority;
 
     await quote.save();
-
-    if (quote.status === 'quoted' && quote.quotedPrice != null && quote.conversationId) {
-      const text = pricedMessage(quote);
-      const message = await Message.create({
-        conversationId: quote.conversationId,
-        sender: 'system',
-        text,
-      });
-
-      const { emitToConversation } = await import('../sockets/chat.js').catch(() => ({
-        emitToConversation: null,
-      }));
-      if (typeof emitToConversation === 'function') {
-        emitToConversation(quote.conversationId.toString(), 'message:new', {
-          sender: 'system',
-          text,
-          messageId: message._id.toString(),
-        });
-      }
-    }
 
     res.json({ quote });
   } catch (err) {

@@ -46,6 +46,7 @@ import {
   stepUpload,
 } from '../config/guidedForms.js';
 import { contentTypeForExt } from './storage.js';
+import { logger } from '../utils/logger.js';
 
 /** After this many unanswered turns in a row, hand over to a person. */
 const MAX_UNSURE_STREAK = 3;
@@ -317,11 +318,12 @@ export async function handleChatMessage(input) {
       lang,
     });
   } catch (err) {
+    // Provider error text stays in the server log; the customer only sees the friendly fallback.
+    logger.warn({ err: err.message, conversationId: String(conversation._id) }, 'LLM answer failed');
     await logMiss(conversation, typed, lang, 'llm_failure');
     return replyAi(conversation, pickText(REPLIES.llmDown, lang), {
       reason: 'llm_failure',
       options: menuOptions(lang),
-      detail: err.message,
       lang,
     });
   }
@@ -538,7 +540,6 @@ async function replyAi(conversation, answer, extra = {}) {
     reason: extra.reason || null,
     provider: extra.provider,
     faqCount: extra.faqCount,
-    detail: extra.detail || null,
     upload: extra.upload || null,
   };
 }

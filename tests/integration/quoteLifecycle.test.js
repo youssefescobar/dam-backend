@@ -86,12 +86,9 @@ describe('Quote lifecycle E2E (Phase 6)', () => {
     expect(patched.body.quote.status).toBe('quoted');
     expect(patched.body.quote.quotedPrice).toBe(275);
 
-    // 4. Customer's conversation receives quoted price as a message
-    const messages = await Message.find({ conversationId }).sort({ createdAt: 1 });
-    const priceMsg = messages.find(
-      (m) => m.sender === 'system' && String(m.text).includes('275')
-    );
-    expect(priceMsg).toBeDefined();
+    // 4. The price is not sent to the customer; staff follow up outside the website
+    const messages = await Message.find({ conversationId });
+    expect(messages.some((m) => String(m.text).includes('275'))).toBe(false);
 
     const quote = await Quote.findById(quoteId);
     expect(quote.status).toBe('quoted');

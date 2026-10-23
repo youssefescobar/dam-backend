@@ -163,7 +163,6 @@ router.post('/message', chatLimiter, customerLimiter, validateBody(messageSchema
       reason: result.reason || null,
       systemMessage: result.systemMessage || null,
       options: result.options || [],
-      detail: result.detail || null,
       upload: result.upload || null,
     });
   } catch (err) {

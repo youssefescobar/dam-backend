@@ -1,6 +1,7 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import { connectDb, disconnectDb } from '../../src/config/db.js';
+import { clearFaqCache } from '../../src/services/faqPrompt.js';
 
 /** @type {MongoMemoryServer | null} */
 let memoryServer = null;
@@ -26,4 +27,6 @@ export async function clearDb() {
   for (const key of Object.keys(collections)) {
     await collections[key].deleteMany({});
   }
+  // Raw collection deletes skip Mongoose hooks, so drop the bot's cached KB too.
+  clearFaqCache();
 }
