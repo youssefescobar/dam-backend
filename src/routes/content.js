@@ -105,27 +105,19 @@ const SORT = {
 const router = Router();
 
 /** Public: published items in website shape, e.g. GET /content/news?locale=ar */
-router.get('/:kind', async (req, res, next) => {
-  try {
-    const kind = kindOf(req);
-    const locale = req.query.locale === 'en' ? 'en' : 'ar';
-    const docs = await SiteContent.find({ kind, published: true }).sort(SORT[kind]).limit(200).lean();
-    res.set('Cache-Control', 'public, max-age=60');
-    res.json({ items: docs.map((d) => localize(d, locale)) });
-  } catch (err) {
-    next(err);
-  }
+router.get('/:kind', async (req, res) => {
+  const kind = kindOf(req);
+  const locale = req.query.locale === 'en' ? 'en' : 'ar';
+  const docs = await SiteContent.find({ kind, published: true }).sort(SORT[kind]).limit(200).lean();
+  res.set('Cache-Control', 'public, max-age=60');
+  res.json({ items: docs.map((d) => localize(d, locale)) });
 });
 
 /** Admin: every item of a kind, drafts included, both languages. */
-router.get('/:kind/all', requireAuth, async (req, res, next) => {
-  try {
-    const kind = kindOf(req);
-    const items = await SiteContent.find({ kind }).sort(SORT[kind]).lean();
-    res.json({ items });
-  } catch (err) {
-    next(err);
-  }
+router.get('/:kind/all', requireAuth, async (req, res) => {
+  const kind = kindOf(req);
+  const items = await SiteContent.find({ kind }).sort(SORT[kind]).lean();
+  res.json({ items });
 });
 
 router.post('/:kind', requireAuth, validateBody(itemSchema), async (req, res, next) => {
@@ -163,16 +155,12 @@ router.put('/:kind/:id', requireAuth, validateBody(itemSchema), async (req, res,
   }
 });
 
-router.delete('/:kind/:id', requireAuth, async (req, res, next) => {
-  try {
-    const kind = kindOf(req);
-    const deleted = await SiteContent.findOneAndDelete({ _id: req.params.id, kind });
-    if (!deleted) throw new HttpError(404, 'Not found');
-    res.json({ ok: true });
-    cleanUp([deleted.image, ...(deleted.media || [])]);
-  } catch (err) {
-    next(err);
-  }
+router.delete('/:kind/:id', requireAuth, async (req, res) => {
+  const kind = kindOf(req);
+  const deleted = await SiteContent.findOneAndDelete({ _id: req.params.id, kind });
+  if (!deleted) throw new HttpError(404, 'Not found');
+  res.json({ ok: true });
+  cleanUp([deleted.image, ...(deleted.media || [])]);
 });
 
 export default router;

@@ -29,8 +29,6 @@ const messageSchema = z
     customerEmail: z.string().email().optional(),
     customerPhone: z.string().optional(),
     lang: langSchema,
-    /** @deprecated use session + conversationId */
-    customerContact: z.string().optional(),
     /** A file uploaded through POST /chat/upload, answering the current form step. */
     attachment: z.object({ key: z.string().max(300), name: z.string().max(300).optional() }).optional(),
   })
@@ -88,23 +86,19 @@ async function requireChatOwner(req, res, next) {
 }
 
 /** Initial guided menu (no conversation yet). */
-router.get('/guided', async (req, res, next) => {
+router.get('/guided', async (req, res) => {
+  let settings = null;
   try {
-    let settings = null;
-    try {
-      settings = await getCompanySettings();
-    } catch {
-      /* optional */
-    }
-    const welcome = getWelcomePayload(settings, langFrom(req));
-    res.json({
-      answer: welcome.answer,
-      options: welcome.options,
-      reason: welcome.reason,
-    });
-  } catch (err) {
-    next(err);
+    settings = await getCompanySettings();
+  } catch {
+    /* optional */
   }
+  const welcome = getWelcomePayload(settings, langFrom(req));
+  res.json({
+    answer: welcome.answer,
+    options: welcome.options,
+    reason: welcome.reason,
+  });
 });
 
 router.get('/options', (req, res) => {
@@ -112,31 +106,23 @@ router.get('/options', (req, res) => {
 });
 
 /** Collect identity and open a conversation. */
-router.post('/session', chatLimiter, validateBody(sessionSchema), async (req, res, next) => {
-  try {
-    const { customer, conversation } = await startChatSession(req.body);
-    res.status(201).json({
-      conversationId: conversation._id,
-      status: conversation.status,
-      customer,
-    });
-  } catch (err) {
-    next(err);
-  }
+router.post('/session', chatLimiter, validateBody(sessionSchema), async (req, res) => {
+  const { customer, conversation } = await startChatSession(req.body);
+  res.status(201).json({
+    conversationId: conversation._id,
+    status: conversation.status,
+    customer,
+  });
 });
 
 /** Restore an open chat after a page reload (requires the customer's phone). */
-router.get('/history', chatLimiter, async (req, res, next) => {
-  try {
-    const result = await getConversationForResume(
-      String(req.query.conversationId || ''),
-      String(req.query.phone || ''),
-    );
-    if (!result) return res.status(404).json({ error: 'Conversation not found' });
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
+router.get('/history', chatLimiter, async (req, res) => {
+  const result = await getConversationForResume(
+    String(req.query.conversationId || ''),
+    String(req.query.phone || ''),
+  );
+  if (!result) return res.status(404).json({ error: 'Conversation not found' });
+  res.json(result);
 });
 
 const uploadSchema = z.object({
@@ -151,43 +137,35 @@ const uploadSchema = z.object({
  * Presign a private upload (CV, complaint photo). Only while the chat's form is waiting
  * on a file step that accepts this type and size, so the bucket can't be used as free storage.
  */
-router.post('/upload', chatLimiter, customerLimiter, validateBody(uploadSchema), requireChatOwner, async (req, res, next) => {
-  try {
-    const { conversationId, contentType, size } = req.body;
-    const conversation = await Conversation.findOne({ _id: conversationId, status: 'ai_handling' });
-    const file = currentStep(conversation)?.file;
-    if (!file) return res.status(409).json({ error: 'This chat is not waiting for a file' });
-    if (!file.accept.includes(contentType)) return res.status(400).json({ error: 'This file type is not accepted here' });
-    if (size > file.maxMb * 1024 * 1024) return res.status(400).json({ error: `File is larger than ${file.maxMb} MB` });
-    const { key, uploadUrl, headers } = await presignUpload({
-      bucket: 'private',
-      prefix: `chat/${conversationId}`,
-      contentType,
-      size,
-    });
-    res.json({ key, uploadUrl, headers });
-  } catch (err) {
-    next(err);
-  }
+router.post('/upload', chatLimiter, customerLimiter, validateBody(uploadSchema), requireChatOwner, async (req, res) => {
+  const { conversationId, contentType, size } = req.body;
+  const conversation = await Conversation.findOne({ _id: conversationId, status: 'ai_handling' });
+  const file = currentStep(conversation)?.file;
+  if (!file) return res.status(409).json({ error: 'This chat is not waiting for a file' });
+  if (!file.accept.includes(contentType)) return res.status(400).json({ error: 'This file type is not accepted here' });
+  if (size > file.maxMb * 1024 * 1024) return res.status(400).json({ error: `File is larger than ${file.maxMb} MB` });
+  const { key, uploadUrl, headers } = await presignUpload({
+    bucket: 'private',
+    prefix: `chat/${conversationId}`,
+    contentType,
+    size,
+  });
+  res.json({ key, uploadUrl, headers });
 });
 
-router.post('/message', chatLimiter, customerLimiter, validateBody(messageSchema), requireChatOwner, async (req, res, next) => {
-  try {
-    const result = await handleChatMessage(req.body);
-    res.status(200).json({
-      conversationId: result.conversation._id,
-      status: result.conversation.status,
-      escalated: result.escalated,
-      answer: result.answer,
-      messageId: result.messageId || null,
-      reason: result.reason || null,
-      systemMessage: result.systemMessage || null,
-      options: result.options || [],
-      upload: result.upload || null,
-    });
-  } catch (err) {
-    next(err);
-  }
+router.post('/message', chatLimiter, customerLimiter, validateBody(messageSchema), requireChatOwner, async (req, res) => {
+  const result = await handleChatMessage(req.body);
+  res.status(200).json({
+    conversationId: result.conversation._id,
+    status: result.conversation.status,
+    escalated: result.escalated,
+    answer: result.answer,
+    messageId: result.messageId || null,
+    reason: result.reason || null,
+    systemMessage: result.systemMessage || null,
+    options: result.options || [],
+    upload: result.upload || null,
+  });
 });
 
 export default router;

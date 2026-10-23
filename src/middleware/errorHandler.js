@@ -1,3 +1,5 @@
+import { logger } from '../utils/logger.js';
+
 export function errorHandler(err, _req, res, _next) {
   // A malformed :id (e.g. /quotes/abc) is a missing record, not a server fault.
   if (err.name === 'CastError' && err.kind === 'ObjectId') {
@@ -12,8 +14,8 @@ export function errorHandler(err, _req, res, _next) {
     payload.fields = err.fields;
   }
 
-  if (status >= 500 && process.env.NODE_ENV !== 'test') {
-    console.error(err);
+  if (status >= 500) {
+    logger.error({ err }, 'request failed');
   }
 
   res.status(status).json(payload);

@@ -1,42 +1,27 @@
-import jwt from 'jsonwebtoken';
-import { Admin } from '../models/Admin.js';
+import { adminFromToken } from '../middleware/auth.js';
 
 /**
  * Socket.io middleware: optional JWT on handshake.
  * Public customer events work without auth; admin events check socket.data.admin.
  */
-export function socketAuthMiddleware(socket, next) {
+export async function socketAuthMiddleware(socket, next) {
   const token =
     socket.handshake.auth?.token ||
     (typeof socket.handshake.headers?.authorization === 'string'
       ? socket.handshake.headers.authorization.replace(/^Bearer\s+/i, '')
       : null);
 
-  if (!token) {
-    socket.data.admin = null;
-    return next();
-  }
+  socket.data.admin = null;
+  if (!token) return next();
 
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    return next(new Error('JWT_SECRET is not configured'));
+  try {
+    const admin = await adminFromToken(token);
+    if (!admin) return next(new Error('Invalid or expired token'));
+    socket.data.admin = admin;
+    next();
+  } catch (err) {
+    next(err);
   }
-
-  jwt.verify(token, secret, async (err, payload) => {
-    if (err || !payload?.sub) {
-      return next(new Error('Invalid or expired token'));
-    }
-    try {
-      const admin = await Admin.findById(payload.sub).select('-passwordHash');
-      if (!admin) {
-        return next(new Error('Invalid or expired token'));
-      }
-      socket.data.admin = admin;
-      next();
-    } catch (e) {
-      next(e);
-    }
-  });
 }
 
 export function requireSocketAdmin(socket) {

@@ -279,7 +279,3 @@ export function classifyChitchat(text) {
   return null;
 }
 
-/** @deprecated use classifyChitchat */
-export function isGreetingOrChitchat(text) {
-  return classifyChitchat(text) !== null;
-}

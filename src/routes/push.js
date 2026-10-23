@@ -18,43 +18,35 @@ const unsubscribeSchema = z.object({
 
 const router = Router();
 
-router.post('/subscribe', requireAuth, validateBody(subscribeSchema), async (req, res, next) => {
-  try {
-    const admin = await Admin.findById(req.admin._id);
-    const existingIdx = admin.pushSubscriptions.findIndex(
-      (s) => s.endpoint === req.body.endpoint
-    );
-    if (existingIdx >= 0) {
-      admin.pushSubscriptions[existingIdx] = req.body;
-    } else {
-      admin.pushSubscriptions.push(req.body);
-    }
-    await admin.save();
-    res.status(201).json({
-      ok: true,
-      subscriptionCount: admin.pushSubscriptions.length,
-    });
-  } catch (err) {
-    next(err);
+router.post('/subscribe', requireAuth, validateBody(subscribeSchema), async (req, res) => {
+  const admin = await Admin.findById(req.admin._id);
+  const existingIdx = admin.pushSubscriptions.findIndex(
+    (s) => s.endpoint === req.body.endpoint
+  );
+  if (existingIdx >= 0) {
+    admin.pushSubscriptions[existingIdx] = req.body;
+  } else {
+    admin.pushSubscriptions.push(req.body);
   }
+  await admin.save();
+  res.status(201).json({
+    ok: true,
+    subscriptionCount: admin.pushSubscriptions.length,
+  });
 });
 
-router.post('/unsubscribe', requireAuth, validateBody(unsubscribeSchema), async (req, res, next) => {
-  try {
-    const admin = await Admin.findById(req.admin._id);
-    const before = admin.pushSubscriptions.length;
-    admin.pushSubscriptions = admin.pushSubscriptions.filter(
-      (s) => s.endpoint !== req.body.endpoint
-    );
-    await admin.save();
-    res.json({
-      ok: true,
-      removed: before - admin.pushSubscriptions.length,
-      subscriptionCount: admin.pushSubscriptions.length,
-    });
-  } catch (err) {
-    next(err);
-  }
+router.post('/unsubscribe', requireAuth, validateBody(unsubscribeSchema), async (req, res) => {
+  const admin = await Admin.findById(req.admin._id);
+  const before = admin.pushSubscriptions.length;
+  admin.pushSubscriptions = admin.pushSubscriptions.filter(
+    (s) => s.endpoint !== req.body.endpoint
+  );
+  await admin.save();
+  res.json({
+    ok: true,
+    removed: before - admin.pushSubscriptions.length,
+    subscriptionCount: admin.pushSubscriptions.length,
+  });
 });
 
 router.get('/vapid-public-key', (_req, res) => {

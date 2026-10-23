@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { getIo } from '../sockets/chat.js';
 import { getPushStatus } from './push.js';
+import { DEFAULT_GEMINI_MODEL } from './llm.js';
 
 const startedAt = Date.now();
 
@@ -74,7 +75,7 @@ function checkSockets() {
 
 async function checkLlm(deep) {
   const geminiConfigured = Boolean(process.env.GEMINI_API_KEY);
-  const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+  const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 
   const providers = {
     gemini: {

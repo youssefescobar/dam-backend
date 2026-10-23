@@ -119,10 +119,3 @@ export function startConversationLifecycleJob() {
   if (typeof timer.unref === 'function') timer.unref();
   logger.info({ everyMs: every }, 'Conversation idle sweeper started');
 }
-
-export function stopConversationLifecycleJob() {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
-  }
-}
