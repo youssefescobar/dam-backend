@@ -34,7 +34,6 @@ const importSchema = z
     entries: z.array(entryImportSchema).optional(),
     csv: z.string().optional(),
     mode: z.enum(['append', 'upsert']).optional(),
-    replaceAll: z.boolean().optional(),
   })
   .refine((b) => Boolean(b.csv?.trim()) || (b.entries && b.entries.length > 0), {
     message: 'Provide csv text or a non-empty entries array',
@@ -67,10 +66,9 @@ router.post('/import', validateBody(importSchema), async (req, res) => {
     throw new HttpError(400, 'No valid title/content rows to import');
   }
 
-  const summary = await importKnowledgeEntries(entries, {
-    mode: req.body.mode || 'upsert',
-    replaceAll: Boolean(req.body.replaceAll),
-  });
+  // No "replace all" over HTTP: it wiped both languages and left the bot empty mid-import.
+  // The seed script (KB_REPLACE_ALL=1) still can, for a fresh setup.
+  const summary = await importKnowledgeEntries(entries, { mode: req.body.mode || 'upsert' });
 
   res.status(201).json({
     ok: true,
