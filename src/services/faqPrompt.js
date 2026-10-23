@@ -1,11 +1,23 @@
-import { KnowledgeBaseEntry } from '../models/KnowledgeBaseEntry.js';
+import { KnowledgeBaseEntry, onKnowledgeBaseChange } from '../models/KnowledgeBaseEntry.js';
 
-/** Soft cap — FAQ sets fit in context; raised for full info.md import. */
-export const FAQ_ENTRY_LIMIT = 200;
+/** Safety cap only. Retrieval below picks the ~30 rows the model sees, so every row should load. */
+export const FAQ_ENTRY_LIMIT = 2000;
+
+/** Rows are kept in memory this long; any KB write through the model clears them sooner. */
+const FAQ_CACHE_MS = 60_000;
+
+/** @type {{ at: number, entries: Awaited<ReturnType<typeof readFaqEntries>> | null }} */
+let cache = { at: 0, entries: null };
+
+/** Forget the cached rows (called after KB writes, and by tests that clear the DB). */
+export function clearFaqCache() {
+  cache = { at: 0, entries: null };
+}
+
+onKnowledgeBaseChange(clearFaqCache);
 
 /**
- * Load FAQ rows from Mongo (title = question, content = answer).
- * @param {{ limit?: number, locale?: string }} [options]
+ * Load every FAQ row (title = question, content = answer), cached for a minute.
  * @returns {Promise<Array<{
  *   title: string,
  *   content: string,
@@ -18,19 +30,20 @@ export const FAQ_ENTRY_LIMIT = 200;
  *   sourceId?: string | null,
  * }>>}
  */
-export async function loadFaqEntries(options = {}) {
-  const limit = options.limit ?? FAQ_ENTRY_LIMIT;
-  const filter = {};
-  if (options.locale === 'ar' || options.locale === 'en') {
-    filter.locale = options.locale;
-  }
+export async function loadFaqEntries() {
+  if (cache.entries && Date.now() - cache.at < FAQ_CACHE_MS) return cache.entries;
+  const entries = await readFaqEntries();
+  cache = { at: Date.now(), entries };
+  return entries;
+}
 
-  const entries = await KnowledgeBaseEntry.find(filter)
+async function readFaqEntries() {
+  const entries = await KnowledgeBaseEntry.find({})
     .select(
       'title content intent category locale escalate requiresLiveData sourceId'
     )
     .sort({ sourceId: 1, updatedAt: -1 })
-    .limit(limit)
+    .limit(FAQ_ENTRY_LIMIT)
     .lean();
 
   return entries

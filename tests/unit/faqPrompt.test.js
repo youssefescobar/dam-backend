@@ -17,7 +17,7 @@ describe('formatFaqBlock', () => {
   });
 
   it('exports a sane entry limit', () => {
-    expect(FAQ_ENTRY_LIMIT).toBeGreaterThanOrEqual(50);
-    expect(FAQ_ENTRY_LIMIT).toBeLessThanOrEqual(250);
+    // The seeded KB alone is 320 rows (160 EN + 160 AR); all of them must reach retrieval.
+    expect(FAQ_ENTRY_LIMIT).toBeGreaterThanOrEqual(320);
   });
 });

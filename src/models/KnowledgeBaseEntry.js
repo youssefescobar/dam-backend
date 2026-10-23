@@ -21,6 +21,20 @@ const knowledgeBaseEntrySchema = new mongoose.Schema(
 
 knowledgeBaseEntrySchema.index({ locale: 1, title: 1 });
 
+const changeListeners = new Set();
+
+/** Run `fn` after any KB write through Mongoose (admin edits, CSV import, seed script). */
+export function onKnowledgeBaseChange(fn) {
+  changeListeners.add(fn);
+}
+
+// Hooks must be registered before the model is compiled.
+for (const op of ['save', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'findOneAndUpdate', 'updateOne', 'updateMany', 'insertMany']) {
+  knowledgeBaseEntrySchema.post(op, () => {
+    for (const fn of changeListeners) fn();
+  });
+}
+
 export const KnowledgeBaseEntry =
   mongoose.models.KnowledgeBaseEntry ||
   mongoose.model('KnowledgeBaseEntry', knowledgeBaseEntrySchema);

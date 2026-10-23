@@ -22,7 +22,10 @@ export const Customer =
   mongoose.models.Customer || mongoose.model('Customer', customerSchema);
 
 /**
- * Find by email or phone and upsert identity fields.
+ * Find the customer by phone number (their identity) or create them.
+ * The phone of an existing customer is never changed: chat ownership is proven with it,
+ * so letting a new chat or quote overwrite it would hand that customer's chats to someone else.
+ * Name and email are refreshed from the latest chat or quote.
  * @param {{ name: string, email: string, phone: string, channel?: string }} input
  */
 export async function findOrUpsertCustomer(input) {
@@ -35,25 +38,19 @@ export async function findOrUpsertCustomer(input) {
     throw err;
   }
 
-  let customer = await Customer.findOne({
-    $or: email ? [{ email }, { phone }] : [{ phone }],
-  });
-
-  const contact = phone || email;
+  let customer = await Customer.findOne({ phone });
 
   if (!customer) {
     customer = await Customer.create({
       name,
       email,
       phone,
-      contact,
+      contact: phone,
       channel: input.channel || 'web',
     });
   } else {
     customer.name = name;
     if (email) customer.email = email;
-    customer.phone = phone;
-    customer.contact = contact;
     if (input.channel) customer.channel = input.channel;
     await customer.save();
   }

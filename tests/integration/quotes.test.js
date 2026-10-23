@@ -8,6 +8,9 @@ import { Quote } from '../../src/models/Quote.js';
 import { Message } from '../../src/models/Message.js';
 import { KnowledgeBaseEntry } from '../../src/models/KnowledgeBaseEntry.js';
 
+// These tests submit many quotes from one phone; the spam limit has its own test (launchFixes).
+process.env.QUOTE_MAX_PER_PHONE = '1000';
+
 describe('Quotes & Auth & KB (Phase 1)', () => {
   /** @type {import('express').Express} */
   let app;
@@ -207,7 +210,7 @@ describe('Quotes & Auth & KB (Phase 1)', () => {
       expect(res.body.quote.quotedPrice).toBe(120);
     });
 
-    it('tells the customer the price in SAR and their language', async () => {
+    it('never sends the price to the customer (staff follow up in person)', async () => {
       const created = await request(app).post('/quotes').send({
         customerName: 'Huda',
         customerContact: '+966500000001',
@@ -217,15 +220,16 @@ describe('Quotes & Auth & KB (Phase 1)', () => {
         passengers: 40,
         language: 'ar',
       });
+      const id = created.body.quote._id;
+      const auth = { Authorization: `Bearer ${adminToken}` };
 
-      await request(app)
-        .patch(`/quotes/${created.body.quote._id}`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ status: 'quoted', quotedPrice: 12500 });
+      await request(app).patch(`/quotes/${id}`).set(auth).send({ status: 'quoted', quotedPrice: 12500 });
+      await request(app).patch(`/quotes/${id}`).set(auth).send({ staffNotes: 'Called them' });
+      await request(app).patch(`/quotes/${id}`).set(auth).send({ quotedPrice: 13000 });
 
-      const msg = await Message.findOne({ conversationId: created.body.conversationId, sender: 'system' });
-      expect(msg.text).toContain('ريال سعودي');
-      expect(msg.text).toContain(created.body.leadId);
+      const sent = await Message.countDocuments({ conversationId: created.body.conversationId });
+      expect(sent).toBe(0);
+      expect((await Quote.findById(id)).quotedPrice).toBe(13000);
     });
 
     it('returns 404, not 500, for a malformed id', async () => {
