@@ -25,25 +25,17 @@ const router = Router();
  * Admin: presign a public upload for site content (images, video, PDFs).
  * The browser PUTs the file to uploadUrl with `headers`, then saves `url` on the content item.
  */
-router.post('/', requireAuth, validateBody(uploadSchema), async (req, res, next) => {
-  try {
-    const month = new Date().toISOString().slice(0, 7);
-    res.json(await presignUpload({ bucket: 'public', prefix: `admin/${month}`, ...req.body }));
-  } catch (err) {
-    next(err);
-  }
+router.post('/', requireAuth, validateBody(uploadSchema), async (req, res) => {
+  const month = new Date().toISOString().slice(0, 7);
+  res.json(await presignUpload({ bucket: 'public', prefix: `admin/${month}`, ...req.body }));
 });
 
 /** Admin: short-lived download link for a customer's private file (e.g. chat/<conversationId>/<uuid>.pdf). */
-router.get('/private', requireAuth, async (req, res, next) => {
-  try {
-    const key = String(req.query.key || '');
-    if (!/^chat\/[a-f0-9]{24}\/[a-f0-9-]{36}\.[a-z0-9]+$/.test(key)) throw new HttpError(400, 'Invalid file key');
-    const name = String(req.query.name || '').replace(/[\r\n]/g, '').slice(0, 120);
-    res.json({ url: await presignPrivateRead(key, name) });
-  } catch (err) {
-    next(err);
-  }
+router.get('/private', requireAuth, async (req, res) => {
+  const key = String(req.query.key || '');
+  if (!/^chat\/[a-f0-9]{24}\/[a-f0-9-]{36}\.[a-z0-9]+$/.test(key)) throw new HttpError(400, 'Invalid file key');
+  const name = String(req.query.name || '').replace(/[\r\n]/g, '').slice(0, 120);
+  res.json({ url: await presignPrivateRead(key, name) });
 });
 
 export default router;

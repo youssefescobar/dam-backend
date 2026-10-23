@@ -36,55 +36,43 @@ const patchSchema = z.object({
 const router = Router();
 
 /** Public read — marketing site / bot can fetch contact & hours */
-router.get('/public', async (_req, res, next) => {
-  try {
-    const doc = await getCompanySettings();
-    res.json({
-      settings: {
-        legalNameAr: doc.legalNameAr,
-        legalNameEn: doc.legalNameEn,
-        email: doc.email,
-        phones: doc.phones,
-        whatsappNumber: doc.whatsappNumber,
-        addressAr: doc.addressAr,
-        addressEn: doc.addressEn,
-        workingHoursAr: doc.workingHoursAr,
-        workingHoursEn: doc.workingHoursEn,
-        quoteSlaHours: doc.quoteSlaHours,
-        botGreetingEn: doc.botGreetingEn,
-        botGreetingAr: doc.botGreetingAr,
-      },
-    });
-  } catch (err) {
-    next(err);
-  }
+router.get('/public', async (_req, res) => {
+  const doc = await getCompanySettings();
+  res.json({
+    settings: {
+      legalNameAr: doc.legalNameAr,
+      legalNameEn: doc.legalNameEn,
+      email: doc.email,
+      phones: doc.phones,
+      whatsappNumber: doc.whatsappNumber,
+      addressAr: doc.addressAr,
+      addressEn: doc.addressEn,
+      workingHoursAr: doc.workingHoursAr,
+      workingHoursEn: doc.workingHoursEn,
+      quoteSlaHours: doc.quoteSlaHours,
+      botGreetingEn: doc.botGreetingEn,
+      botGreetingAr: doc.botGreetingAr,
+    },
+  });
 });
 
 router.use(requireAuth);
 
-router.get('/', async (_req, res, next) => {
-  try {
-    const doc = await getCompanySettings();
-    res.json({ settings: doc });
-  } catch (err) {
-    next(err);
-  }
+router.get('/', async (_req, res) => {
+  const doc = await getCompanySettings();
+  res.json({ settings: doc });
 });
 
-router.patch('/', validateBody(patchSchema), async (req, res, next) => {
-  try {
-    const doc = await getCompanySettings();
-    const fields = Object.keys(req.body);
-    for (const key of fields) {
-      if (req.body[key] !== undefined) {
-        doc[key] = req.body[key];
-      }
+router.patch('/', validateBody(patchSchema), async (req, res) => {
+  const doc = await getCompanySettings();
+  const fields = Object.keys(req.body);
+  for (const key of fields) {
+    if (req.body[key] !== undefined) {
+      doc[key] = req.body[key];
     }
-    await doc.save();
-    res.json({ settings: doc });
-  } catch (err) {
-    next(err);
   }
+  await doc.save();
+  res.json({ settings: doc });
 });
 
 export default router;

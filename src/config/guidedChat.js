@@ -3,8 +3,6 @@
  * Everything customer-facing exists in English and Arabic; `lang` picks one.
  */
 
-export const LANGS = ['en', 'ar'];
-
 /** Normalise any input to 'en' | 'ar'. */
 export function normalizeLang(lang) {
   return String(lang || '').toLowerCase().startsWith('ar') ? 'ar' : 'en';
@@ -356,9 +354,6 @@ export function guidedAnswerText(choiceId, settings, lang) {
 }
 
 /** @deprecated kept for older imports; prefer guidedAnswerText. */
-export const applySettingsToGuidedAnswer = (choiceId, settings, lang = 'en') =>
-  guidedAnswerText(choiceId, settings, lang);
-
 /* ---------- Canned system replies ---------- */
 
 export const REPLIES = {

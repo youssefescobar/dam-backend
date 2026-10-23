@@ -3,7 +3,8 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { clientRateKey } from '../middleware/clientKey.js';
 import { validateBody } from '../middleware/validate.js';
-import { getConversationForResume, handleChatMessage, startChatSession } from '../services/chat.js';
+import { conversationOwnership, getConversationForResume, handleChatMessage, startChatSession } from '../services/chat.js';
+import { logger } from '../utils/logger.js';
 import { REPLIES, getWelcomePayload, menuOptions, normalizeLang, pickText } from '../config/guidedChat.js';
 import { getCompanySettings } from '../models/Settings.js';
 import { Conversation } from '../models/Conversation.js';
@@ -28,8 +29,6 @@ const messageSchema = z
     customerEmail: z.string().email().optional(),
     customerPhone: z.string().optional(),
     lang: langSchema,
-    /** @deprecated use session + conversationId */
-    customerContact: z.string().optional(),
     /** A file uploaded through POST /chat/upload, answering the current form step. */
     attachment: z.object({ key: z.string().max(300), name: z.string().max(300).optional() }).optional(),
   })
@@ -68,24 +67,38 @@ const customerLimiter = rateLimit({
 
 const langFrom = (req) => normalizeLang(req.query.lang);
 
-/** Initial guided menu (no conversation yet). */
-router.get('/guided', async (req, res, next) => {
-  try {
-    let settings = null;
-    try {
-      settings = await getCompanySettings();
-    } catch {
-      /* optional */
-    }
-    const welcome = getWelcomePayload(settings, langFrom(req));
-    res.json({
-      answer: welcome.answer,
-      options: welcome.options,
-      reason: welcome.reason,
-    });
-  } catch (err) {
-    next(err);
+/**
+ * Only the customer who owns a chat may write to it: they prove it with their phone, like
+ * /chat/history and the live socket. A request without a phone is let through (and logged)
+ * until CHAT_REQUIRE_PHONE=1, so browsers still running the older website keep working.
+ */
+async function requireChatOwner(req, res, next) {
+  const { conversationId, customerPhone } = req.body;
+  if (!conversationId) return next();
+  const owner = await conversationOwnership(conversationId, customerPhone);
+  // An unknown id falls through: the handler starts a new chat or rejects it.
+  if (owner === 'missing' || owner === 'owner') return next();
+  if (owner === 'no_phone' && process.env.CHAT_REQUIRE_PHONE !== '1') {
+    logger.warn({ conversationId: String(conversationId), path: req.path }, 'chat write without phone');
+    return next();
   }
+  return res.status(404).json({ error: 'Conversation not found' });
+}
+
+/** Initial guided menu (no conversation yet). */
+router.get('/guided', async (req, res) => {
+  let settings = null;
+  try {
+    settings = await getCompanySettings();
+  } catch {
+    /* optional */
+  }
+  const welcome = getWelcomePayload(settings, langFrom(req));
+  res.json({
+    answer: welcome.answer,
+    options: welcome.options,
+    reason: welcome.reason,
+  });
 });
 
 router.get('/options', (req, res) => {
@@ -93,37 +106,30 @@ router.get('/options', (req, res) => {
 });
 
 /** Collect identity and open a conversation. */
-router.post('/session', chatLimiter, validateBody(sessionSchema), async (req, res, next) => {
-  try {
-    const { customer, conversation } = await startChatSession(req.body);
-    res.status(201).json({
-      conversationId: conversation._id,
-      status: conversation.status,
-      customer,
-    });
-  } catch (err) {
-    next(err);
-  }
+router.post('/session', chatLimiter, validateBody(sessionSchema), async (req, res) => {
+  const { customer, conversation } = await startChatSession(req.body);
+  res.status(201).json({
+    conversationId: conversation._id,
+    status: conversation.status,
+    customer,
+  });
 });
 
 /** Restore an open chat after a page reload (requires the customer's phone). */
-router.get('/history', chatLimiter, async (req, res, next) => {
-  try {
-    const result = await getConversationForResume(
-      String(req.query.conversationId || ''),
-      String(req.query.phone || ''),
-    );
-    if (!result) return res.status(404).json({ error: 'Conversation not found' });
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
+router.get('/history', chatLimiter, async (req, res) => {
+  const result = await getConversationForResume(
+    String(req.query.conversationId || ''),
+    String(req.query.phone || ''),
+  );
+  if (!result) return res.status(404).json({ error: 'Conversation not found' });
+  res.json(result);
 });
 
 const uploadSchema = z.object({
   conversationId: z.string().regex(/^[a-f0-9]{24}$/, 'invalid conversation'),
   contentType: z.enum(CHAT_TYPES, { message: 'only JPG, PNG, WebP, PDF or Word files' }),
   size: z.number().int().positive().max(10 * 1024 * 1024, 'file is larger than 10 MB'),
+  customerPhone: z.string().max(40).optional(),
   lang: langSchema,
 });
 
@@ -131,43 +137,35 @@ const uploadSchema = z.object({
  * Presign a private upload (CV, complaint photo). Only while the chat's form is waiting
  * on a file step that accepts this type and size, so the bucket can't be used as free storage.
  */
-router.post('/upload', chatLimiter, customerLimiter, validateBody(uploadSchema), async (req, res, next) => {
-  try {
-    const { conversationId, contentType, size } = req.body;
-    const conversation = await Conversation.findOne({ _id: conversationId, status: 'ai_handling' });
-    const file = currentStep(conversation)?.file;
-    if (!file) return res.status(409).json({ error: 'This chat is not waiting for a file' });
-    if (!file.accept.includes(contentType)) return res.status(400).json({ error: 'This file type is not accepted here' });
-    if (size > file.maxMb * 1024 * 1024) return res.status(400).json({ error: `File is larger than ${file.maxMb} MB` });
-    const { key, uploadUrl, headers } = await presignUpload({
-      bucket: 'private',
-      prefix: `chat/${conversationId}`,
-      contentType,
-      size,
-    });
-    res.json({ key, uploadUrl, headers });
-  } catch (err) {
-    next(err);
-  }
+router.post('/upload', chatLimiter, customerLimiter, validateBody(uploadSchema), requireChatOwner, async (req, res) => {
+  const { conversationId, contentType, size } = req.body;
+  const conversation = await Conversation.findOne({ _id: conversationId, status: 'ai_handling' });
+  const file = currentStep(conversation)?.file;
+  if (!file) return res.status(409).json({ error: 'This chat is not waiting for a file' });
+  if (!file.accept.includes(contentType)) return res.status(400).json({ error: 'This file type is not accepted here' });
+  if (size > file.maxMb * 1024 * 1024) return res.status(400).json({ error: `File is larger than ${file.maxMb} MB` });
+  const { key, uploadUrl, headers } = await presignUpload({
+    bucket: 'private',
+    prefix: `chat/${conversationId}`,
+    contentType,
+    size,
+  });
+  res.json({ key, uploadUrl, headers });
 });
 
-router.post('/message', chatLimiter, customerLimiter, validateBody(messageSchema), async (req, res, next) => {
-  try {
-    const result = await handleChatMessage(req.body);
-    res.status(200).json({
-      conversationId: result.conversation._id,
-      status: result.conversation.status,
-      escalated: result.escalated,
-      answer: result.answer,
-      messageId: result.messageId || null,
-      reason: result.reason || null,
-      systemMessage: result.systemMessage || null,
-      options: result.options || [],
-      upload: result.upload || null,
-    });
-  } catch (err) {
-    next(err);
-  }
+router.post('/message', chatLimiter, customerLimiter, validateBody(messageSchema), requireChatOwner, async (req, res) => {
+  const result = await handleChatMessage(req.body);
+  res.status(200).json({
+    conversationId: result.conversation._id,
+    status: result.conversation.status,
+    escalated: result.escalated,
+    answer: result.answer,
+    messageId: result.messageId || null,
+    reason: result.reason || null,
+    systemMessage: result.systemMessage || null,
+    options: result.options || [],
+    upload: result.upload || null,
+  });
 });
 
 export default router;
