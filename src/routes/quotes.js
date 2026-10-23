@@ -320,6 +320,18 @@ router.patch('/:id', requireAuth, validateBody(patchQuoteSchema), async (req, re
   res.json({ quote });
 });
 
+// Staff delete (spam, duplicates, tests). Permanent; nothing else stores a quote's id.
+router.delete('/:id', requireAuth, async (req, res) => {
+  const quote = mongoose.isValidObjectId(req.params.id)
+    ? await Quote.findByIdAndDelete(req.params.id)
+    : null;
+  if (!quote) {
+    throw new HttpError(404, 'Quote not found');
+  }
+  emitToAdminQueue('quote:deleted', { quoteId: quote._id.toString() });
+  res.status(204).end();
+});
+
 router.put('/:id', validateBody(createQuoteSchema), async (req, res) => {
   const token = req.get('x-edit-token') || '';
   const quote = mongoose.isValidObjectId(req.params.id)
