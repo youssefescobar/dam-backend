@@ -3,7 +3,8 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { clientRateKey } from '../middleware/clientKey.js';
 import { validateBody } from '../middleware/validate.js';
-import { getConversationForResume, handleChatMessage, startChatSession } from '../services/chat.js';
+import { conversationOwnership, getConversationForResume, handleChatMessage, startChatSession } from '../services/chat.js';
+import { logger } from '../utils/logger.js';
 import { REPLIES, getWelcomePayload, menuOptions, normalizeLang, pickText } from '../config/guidedChat.js';
 import { getCompanySettings } from '../models/Settings.js';
 import { Conversation } from '../models/Conversation.js';
@@ -68,6 +69,24 @@ const customerLimiter = rateLimit({
 
 const langFrom = (req) => normalizeLang(req.query.lang);
 
+/**
+ * Only the customer who owns a chat may write to it: they prove it with their phone, like
+ * /chat/history and the live socket. A request without a phone is let through (and logged)
+ * until CHAT_REQUIRE_PHONE=1, so browsers still running the older website keep working.
+ */
+async function requireChatOwner(req, res, next) {
+  const { conversationId, customerPhone } = req.body;
+  if (!conversationId) return next();
+  const owner = await conversationOwnership(conversationId, customerPhone);
+  // An unknown id falls through: the handler starts a new chat or rejects it.
+  if (owner === 'missing' || owner === 'owner') return next();
+  if (owner === 'no_phone' && process.env.CHAT_REQUIRE_PHONE !== '1') {
+    logger.warn({ conversationId: String(conversationId), path: req.path }, 'chat write without phone');
+    return next();
+  }
+  return res.status(404).json({ error: 'Conversation not found' });
+}
+
 /** Initial guided menu (no conversation yet). */
 router.get('/guided', async (req, res, next) => {
   try {
@@ -124,6 +143,7 @@ const uploadSchema = z.object({
   conversationId: z.string().regex(/^[a-f0-9]{24}$/, 'invalid conversation'),
   contentType: z.enum(CHAT_TYPES, { message: 'only JPG, PNG, WebP, PDF or Word files' }),
   size: z.number().int().positive().max(10 * 1024 * 1024, 'file is larger than 10 MB'),
+  customerPhone: z.string().max(40).optional(),
   lang: langSchema,
 });
 
@@ -131,7 +151,7 @@ const uploadSchema = z.object({
  * Presign a private upload (CV, complaint photo). Only while the chat's form is waiting
  * on a file step that accepts this type and size, so the bucket can't be used as free storage.
  */
-router.post('/upload', chatLimiter, customerLimiter, validateBody(uploadSchema), async (req, res, next) => {
+router.post('/upload', chatLimiter, customerLimiter, validateBody(uploadSchema), requireChatOwner, async (req, res, next) => {
   try {
     const { conversationId, contentType, size } = req.body;
     const conversation = await Conversation.findOne({ _id: conversationId, status: 'ai_handling' });
@@ -151,7 +171,7 @@ router.post('/upload', chatLimiter, customerLimiter, validateBody(uploadSchema),
   }
 });
 
-router.post('/message', chatLimiter, customerLimiter, validateBody(messageSchema), async (req, res, next) => {
+router.post('/message', chatLimiter, customerLimiter, validateBody(messageSchema), requireChatOwner, async (req, res, next) => {
   try {
     const result = await handleChatMessage(req.body);
     res.status(200).json({

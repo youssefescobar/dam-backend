@@ -8,6 +8,7 @@ import { findOrUpsertCustomer } from '../models/Customer.js';
 import { Conversation } from '../models/Conversation.js';
 import { requireAuth } from '../middleware/auth.js';
 import { clientRateKey } from '../middleware/clientKey.js';
+import { samePhone } from '../utils/phone.js';
 import { validateBody } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errorHandler.js';
 import { notifyAdmins } from '../services/push.js';
@@ -242,8 +243,6 @@ router.post('/', quoteIpLimiter, validateBody(createQuoteSchema), quotePhoneLimi
   }
 });
 
-const digitsOf = (s) => String(s || '').replace(/\D/g, '');
-
 /** Per lead ID, so nobody can guess phone numbers for one request. */
 const trackLeadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -270,9 +269,7 @@ router.get('/track', trackLeadLimiter, async (req, res, next) => {
     const { leadId, phone } = parsed.data;
 
     const quote = await Quote.findOne({ leadId: leadId.toUpperCase() }).lean();
-    const given = digitsOf(phone);
-    const known = digitsOf(quote?.customerContact);
-    if (!quote || given.length < 6 || known.slice(-9) !== given.slice(-9)) {
+    if (!quote || !samePhone(phone, quote.customerContact)) {
       throw new HttpError(404, 'Request not found');
     }
 

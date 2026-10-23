@@ -6,6 +6,7 @@ import { createApp } from '../../src/app.js';
 import { startTestDb, stopTestDb, clearDb } from '../helpers/db.js';
 import { Admin } from '../../src/models/Admin.js';
 import { Customer } from '../../src/models/Customer.js';
+import { Conversation } from '../../src/models/Conversation.js';
 import { KnowledgeBaseEntry } from '../../src/models/KnowledgeBaseEntry.js';
 import { parseKbCsv } from '../../src/utils/csv.js';
 import { importKnowledgeEntries } from '../../src/services/kbImport.js';
@@ -174,5 +175,56 @@ describe('follow-ups', () => {
     expect(first).toBeGreaterThanOrEqual(second);
     const all = await request(app).get('/quotes').set('Authorization', `Bearer ${token}`);
     expect(all.body.quotes).toHaveLength(3);
+  });
+});
+
+describe('chat writes need the owner phone', () => {
+  let app;
+  let chat;
+
+  beforeAll(async () => {
+    process.env.JWT_SECRET = 'test-jwt-secret-for-jest';
+    await startTestDb();
+    app = createApp();
+  });
+
+  afterAll(async () => {
+    delete process.env.CHAT_REQUIRE_PHONE;
+    await stopTestDb();
+  });
+
+  beforeEach(async () => {
+    await clearDb();
+    delete process.env.CHAT_REQUIRE_PHONE;
+    chat = (await request(app).post('/chat/session').send({ name: 'Owner', phone: '+966511111111' })).body;
+  });
+
+  it('accepts the owner phone in any format', async () => {
+    const res = await request(app)
+      .post('/chat/message')
+      .send({ conversationId: chat.conversationId, customerPhone: '0511111111', choiceId: 'hours' });
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects someone else\'s phone without touching the chat', async () => {
+    const res = await request(app)
+      .post('/chat/message')
+      .send({ conversationId: chat.conversationId, customerPhone: '+966522222222', choiceId: 'human' });
+    expect(res.status).toBe(404);
+    expect((await Conversation.findById(chat.conversationId)).status).toBe('ai_handling');
+
+    const upload = await request(app)
+      .post('/chat/upload')
+      .send({ conversationId: chat.conversationId, customerPhone: '+966522222222', contentType: 'application/pdf', size: 100 });
+    expect(upload.status).toBe(404);
+  });
+
+  it('lets a missing phone through until CHAT_REQUIRE_PHONE=1, then rejects it', async () => {
+    const before = await request(app).post('/chat/message').send({ conversationId: chat.conversationId, choiceId: 'hours' });
+    expect(before.status).toBe(200);
+
+    process.env.CHAT_REQUIRE_PHONE = '1';
+    const after = await request(app).post('/chat/message').send({ conversationId: chat.conversationId, choiceId: 'hours' });
+    expect(after.status).toBe(404);
   });
 });
