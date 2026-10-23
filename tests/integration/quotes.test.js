@@ -188,6 +188,40 @@ describe('Quotes & Auth & KB (Phase 1)', () => {
     });
   });
 
+  describe('DELETE /quotes/:id', () => {
+    const newQuote = () =>
+      request(app).post('/quotes').send({
+        customerName: 'Ada',
+        customerContact: 'ada@example.com',
+        pickup: 'A',
+        dropoff: 'B',
+        date: '2026-10-01',
+        passengers: 2,
+      });
+
+    it('lets staff delete a quote for good', async () => {
+      const created = await newQuote();
+      const id = created.body.quote._id;
+
+      const res = await request(app).delete(`/quotes/${id}`).set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(204);
+      expect(await Quote.findById(id)).toBeNull();
+
+      const again = await request(app).delete(`/quotes/${id}`).set('Authorization', `Bearer ${adminToken}`);
+      expect(again.status).toBe(404);
+    });
+
+    it('needs a staff login and rejects bad ids', async () => {
+      const created = await newQuote();
+      const anon = await request(app).delete(`/quotes/${created.body.quote._id}`);
+      expect(anon.status).toBe(401);
+      expect(await Quote.countDocuments()).toBe(1);
+
+      const bad = await request(app).delete('/quotes/not-an-id').set('Authorization', `Bearer ${adminToken}`);
+      expect(bad.status).toBe(404);
+    });
+  });
+
   describe('PATCH /quotes/:id', () => {
     it('updates status and price', async () => {
       const created = await request(app).post('/quotes').send({
