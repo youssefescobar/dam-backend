@@ -15,7 +15,6 @@ Transportation company API: FAQ-in-prompt Q&A, quote requests, Socket.io human e
 | Auth | JWT + bcrypt |
 
 > **Durra AI, the AI chatbot** — full explanation of the flow, features and configuration: [`docs/AI-CHATBOT.md`](docs/AI-CHATBOT.md).
-> **Open work and what is waiting on Abdullah:** [`TODO.md`](TODO.md).
 
 ## Setup
 
@@ -23,7 +22,7 @@ Transportation company API: FAQ-in-prompt Q&A, quote requests, Socket.io human e
 cp .env.example .env
 # fill MONGO_URI, JWT_SECRET, GEMINI_API_KEY, optional VAPID_*
 npm install
-npm run seed:admin   # creates admin@damic.local / changeme123 by default
+SEED_ADMIN_PASSWORD='a-strong-password' npm run seed:admin   # creates admin@damic.local (or SEED_ADMIN_EMAIL)
 npm start
 ```
 
