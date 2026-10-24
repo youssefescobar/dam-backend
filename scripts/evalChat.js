@@ -2,7 +2,7 @@
  * Chat quality eval: sends a fixed set of questions to the chat API and prints each
  * answer with its latency, length and any red flags, for a human to read through.
  *
- * Usage:  BASE_URL=https://164-92-131-93.sslip.io npm run eval:chat
+ * Usage:  BASE_URL=https://104-248-198-154.sslip.io npm run eval:chat
  *         (defaults to http://127.0.0.1:3000)
  * Optional: ADMIN_EMAIL + ADMIN_PASSWORD to close the test chats afterwards.
  *
