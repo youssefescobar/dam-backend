@@ -6,7 +6,7 @@ const EXTRA_CORS_ORIGINS = [
   'https://munnawara-web.vercel.app',
   'https://munnawara-web-saifisvibinns-projects.vercel.app',
   'https://dam-admin-ten.vercel.app',
-  'https://admin.164-92-131-93.sslip.io',
+  'https://admin.104-248-198-154.sslip.io',
 ]
 
 /**
