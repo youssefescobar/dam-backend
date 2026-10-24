@@ -47,7 +47,7 @@ export async function sweepQuoteReminders(now = new Date()) {
     .limit(BATCH)
     .lean();
   for (const q of late) {
-    const body = `${q.leadId || 'Quote'} · ${q.customerName} has waited over ${slaHours}h for a price`;
+    const body = `${q.leadId || 'Quote'} · ${q.customerName} has waited over ${slaHours}h for a reply`;
     if (await remind(q, 'overdue', 'overdueRemindedAt', body)) overdue += 1;
   }
 
