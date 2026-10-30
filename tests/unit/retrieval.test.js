@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
 import { normalizeArabic, selectRelevantEntries, tokenize } from '../../src/services/faqPrompt.js';
 import { buildContents, classifyChitchat, isExplicitHumanRequest, looksLikeEscalate, stripIntro } from '../../src/services/llm.js';
-import { detectIntent, detectLang } from '../../src/config/guidedChat.js';
+import { detectIntent, detectLang, mentionsQuote } from '../../src/config/guidedChat.js';
 
 const entry = (id, title, content, extra = {}) => ({
   id,
@@ -93,6 +93,13 @@ describe('language + intent helpers', () => {
     expect(detectIntent('I need a quote')).toBe('quote');
     expect(detectIntent('أبي عرض سعر')).toBe('quote');
     expect(detectIntent('what are your working hours')).toBe('hours');
+  });
+
+  it('flags price talk so the quote link shows', () => {
+    expect(mentionsQuote('price ?')).toBe(true);
+    expect(mentionsQuote('yes', 'Would you like to request a quote on our website?')).toBe(true);
+    expect(mentionsQuote('كم سعر التذكرة')).toBe(true);
+    expect(mentionsQuote('what are your working hours', 'Sunday to Thursday.')).toBe(false);
   });
 
   it('does not treat ordinary Arabic booking messages as a request for staff', () => {

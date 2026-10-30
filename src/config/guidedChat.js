@@ -52,8 +52,8 @@ export const MAIN_MENU_OPTIONS = MENU_IDS.map((id) => ALL_TOPIC_OPTIONS.find((o)
 export const EXTRA_OPTIONS = {
   open_quote: {
     id: 'open_quote',
-    label: 'Open the quote form',
-    labelAr: 'افتح نموذج طلب العرض',
+    label: 'Get a quote',
+    labelAr: 'اطلب عرض سعر',
     href: '/quote',
   },
   cancel_flow: { id: 'cancel_flow', label: 'Cancel', labelAr: 'إلغاء' },
@@ -262,6 +262,12 @@ export function detectIntent(text) {
   }
   return null;
 }
+
+/** Price/quote talk (in the question or the answer) earns a visible quote-form link. */
+const QUOTE_TALK =
+  /\b(prices?|pricing|cost|costs|how much|quotes?|quotation|fares?|rates?|prix|tarifs?|devis|harga|biaya|penawaran)\b|سعر|أسعار|اسعار|تكلفة|تكلفه|كم السعر/i;
+
+export const mentionsQuote = (...texts) => texts.some((t) => QUOTE_TALK.test(String(t || '')));
 
 /* ---------- Greetings ---------- */
 

@@ -19,6 +19,7 @@ import {
   MAIN_MENU_OPTIONS,
   REPLIES,
   detectIntent,
+  mentionsQuote,
   detectLang,
   findChoiceIdByLabel,
   getGuidedNode,
@@ -352,9 +353,12 @@ export async function handleChatMessage(input) {
   }
 
   conversation.unsureStreak = 0;
-  return replyAi(conversation, stripIntro(llmResult.answer, typed), {
+  const answer = stripIntro(llmResult.answer, typed);
+  return replyAi(conversation, answer, {
     reason: 'faq',
-    options: menuOptions(lang),
+    options: mentionsQuote(typed, answer)
+      ? localizeOptions([EXTRA_OPTIONS.open_quote, ...MAIN_MENU_OPTIONS], lang)
+      : menuOptions(lang),
     provider: llmResult.provider,
     faqCount: faqEntries.length,
     lang,
