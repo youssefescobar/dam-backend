@@ -49,6 +49,7 @@ npx web-push generate-vapid-keys
 - `POST /quotes` (public) · `GET/PATCH /quotes` (admin JWT)
 - `GET/PATCH /conversations` · `GET /conversations/:id/messages` (admin JWT)
 - `POST/PUT/DELETE /kb` · `POST /kb/import` (admin JWT — CSV or JSON FAQ entries)
+- `GET /fleet?locale=` (public) · `GET /fleet/all` · `POST/PUT/DELETE /fleet` · `PUT /fleet/order` (admin JWT — website bus fleet)
 - `POST /chat/message`
 - `POST /push/subscribe` · `POST /push/unsubscribe` · `GET /push/vapid-public-key`
 

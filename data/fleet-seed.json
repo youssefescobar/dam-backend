@@ -1,0 +1,520 @@
+[
+  {
+    "slug": "premium-vip-2026",
+    "sortOrder": 0,
+    "published": true,
+    "showInShowroom": false,
+    "quoteClass": "premium_vip",
+    "coverImage": "/fleet/vip-2026/side.webp",
+    "exteriorImages": [
+      "/fleet/vip-2026/side.webp",
+      "/fleet/vip-2026/front.webp"
+    ],
+    "interiorImages": [
+      "/fleet/vip-2026/interior-aisle.jpeg",
+      "/fleet/vip-2026/interior-seats.jpeg",
+      "/fleet/vip-2026/interior-legrest.jpeg",
+      "/fleet/vip-2026/interior-cabin.jpeg",
+      "/fleet/vip-2026/interior-rear.jpeg",
+      "/fleet/vip-2026/interior-forward.jpeg"
+    ],
+    "ar": {
+      "name": "باص بريميوم VIP",
+      "seatsLabel": "18 + 1 + 1",
+      "summary": "الوفود الرسمية ونقل VIP والرحلات الطويلة الفاخرة, مقاعد مساج مع التدفئة والتبريد لتجربة سفر مثالية.",
+      "amenities": [
+        "مقاعد مساج",
+        "مقاعد تبريد",
+        "مقاعد تسخين",
+        "منافذ شحن USB Type-C",
+        "شبكة واي فاي",
+        "نظام كاميرات مراقبة",
+        "نظام الصوت",
+        "شاشات عرض",
+        "ثلاجة تبريد",
+        "إضاءة مميزة",
+        "حمام / دورة مياه",
+        "ستائر فاخرة",
+        "وسائل السلامة",
+        "أنظمة فرامل متقدمة ABS",
+        "نظام تحديد المواقع GPS"
+      ]
+    },
+    "en": {
+      "name": "Premium VIP Bus",
+      "seatsLabel": "18 + 1 + 1",
+      "summary": "Official delegations, VIP transport, and luxury long-distance trips, massage seats with heating and cooling for the ultimate travel experience.",
+      "amenities": [
+        "Massage seats",
+        "Cooling seats",
+        "Heating seats",
+        "USB Type-C charging ports",
+        "Wi‑Fi",
+        "CCTV system",
+        "Sound system",
+        "Display screens",
+        "Refrigerator",
+        "Premium lighting",
+        "WC",
+        "Luxury curtains",
+        "Safety features",
+        "ABS systems",
+        "GPS systems"
+      ]
+    },
+    "fr": {
+      "name": "Autocar VIP Premium",
+      "seatsLabel": "18 + 1 + 1",
+      "summary": "Délégations officielles, transport VIP et trajets longue distance de luxe, sièges massants avec chauffage et climatisation pour une expérience de voyage ultime.",
+      "amenities": [
+        "Sièges massants",
+        "Sièges climatisés",
+        "Sièges chauffants",
+        "Ports de charge USB Type-C",
+        "Wi‑Fi",
+        "Système de vidéosurveillance",
+        "Système audio",
+        "Écrans d'affichage",
+        "Réfrigérateur",
+        "Éclairage premium",
+        "Toilettes",
+        "Rideaux de luxe",
+        "Équipements de sécurité",
+        "Systèmes ABS",
+        "Systèmes GPS"
+      ]
+    },
+    "id": {
+      "name": "Bus Premium VIP",
+      "seatsLabel": "18 + 1 + 1",
+      "summary": "Delegasi resmi, transportasi VIP, dan perjalanan jarak jauh mewah, kursi pijat dengan pemanas dan pendingin untuk pengalaman perjalanan terbaik.",
+      "amenities": [
+        "Kursi pijat",
+        "Kursi pendingin",
+        "Kursi pemanas",
+        "Port pengisian USB Type-C",
+        "Wi‑Fi",
+        "Sistem CCTV",
+        "Sistem audio",
+        "Layar tampilan",
+        "Kulkas",
+        "Pencahayaan premium",
+        "WC",
+        "Tirai mewah",
+        "Fitur keselamatan",
+        "Sistem ABS",
+        "Sistem GPS"
+      ]
+    }
+  },
+  {
+    "slug": "vip-2026",
+    "sortOrder": 1,
+    "published": true,
+    "showInShowroom": true,
+    "quoteClass": "vip",
+    "coverImage": "/fleet/vip-2026/side.webp",
+    "exteriorImages": [
+      "/fleet/vip-2026/side.webp",
+      "/fleet/vip-2026/front.webp"
+    ],
+    "interiorImages": [
+      "/fleet/vip-2026/interior-aisle.jpeg",
+      "/fleet/vip-2026/interior-seats.jpeg",
+      "/fleet/vip-2026/interior-legrest.jpeg",
+      "/fleet/vip-2026/interior-cabin.jpeg",
+      "/fleet/vip-2026/interior-rear.jpeg",
+      "/fleet/vip-2026/interior-forward.jpeg"
+    ],
+    "ar": {
+      "name": "باص VIP",
+      "seatsLabel": "28 + 1 + 1",
+      "summary": "الوفود الرسمية ونقل VIP والرحلات الطويلة الفاخرة, مقاعد VIP قابلة للتعديل لرحلة أكثر راحة.",
+      "amenities": [
+        "مقاعد VIP فاخرة",
+        "شبكة واي فاي",
+        "نظام كاميرات مراقبة",
+        "منافذ شحن USB",
+        "إضاءة مميزة",
+        "ثلاجة تبريد",
+        "نظام الصوت",
+        "حمام / دورة مياه",
+        "شاشات عرض",
+        "تكييف مناسب للأجواء",
+        "ستائر فاخرة",
+        "وسائل السلامة",
+        "أنظمة فرامل متقدمة ABS",
+        "نظام تحديد المواقع GPS"
+      ]
+    },
+    "en": {
+      "name": "VIP Bus",
+      "seatsLabel": "28 + 1 + 1",
+      "summary": "Official delegations, VIP transport, and luxury long-distance trips, adjustable VIP seats for a truly relaxing journey.",
+      "amenities": [
+        "Luxury VIP seats",
+        "Wi‑Fi",
+        "CCTV system",
+        "USB charging ports",
+        "Premium lighting",
+        "Refrigerator",
+        "Sound system",
+        "WC",
+        "Display screens",
+        "Cooling bus comfort",
+        "Luxury curtains",
+        "Safety features",
+        "ABS systems",
+        "GPS systems"
+      ]
+    },
+    "fr": {
+      "name": "Autocar VIP",
+      "seatsLabel": "28 + 1 + 1",
+      "summary": "Délégations officielles, transport VIP et trajets longue distance de luxe, sièges VIP réglables pour un voyage véritablement relaxant.",
+      "amenities": [
+        "Sièges VIP de luxe",
+        "Wi‑Fi",
+        "Système de vidéosurveillance",
+        "Ports de charge USB",
+        "Éclairage premium",
+        "Réfrigérateur",
+        "Système audio",
+        "Toilettes",
+        "Écrans d'affichage",
+        "Confort climatisé",
+        "Rideaux de luxe",
+        "Équipements de sécurité",
+        "Systèmes ABS",
+        "Systèmes GPS"
+      ]
+    },
+    "id": {
+      "name": "Bus VIP",
+      "seatsLabel": "28 + 1 + 1",
+      "summary": "Delegasi resmi, transportasi VIP, dan perjalanan jarak jauh mewah, kursi VIP yang dapat disesuaikan untuk perjalanan yang benar-benar santai.",
+      "amenities": [
+        "Kursi VIP mewah",
+        "Wi‑Fi",
+        "Sistem CCTV",
+        "Port pengisian USB",
+        "Pencahayaan premium",
+        "Kulkas",
+        "Sistem audio",
+        "WC",
+        "Layar tampilan",
+        "Kenyamanan AC bus",
+        "Tirai mewah",
+        "Fitur keselamatan",
+        "Sistem ABS",
+        "Sistem GPS"
+      ]
+    }
+  },
+  {
+    "slug": "coach-2025-2026",
+    "sortOrder": 2,
+    "published": true,
+    "showInShowroom": true,
+    "quoteClass": "standard",
+    "coverImage": "/fleet/coach-2025-2026/side-plaza.jpg",
+    "exteriorImages": [
+      "/fleet/coach-2025-2026/side-plaza.jpg",
+      "/fleet/coach-2025-2026/front-plaza.jpg",
+      "/fleet/coach-2025-2026/side.webp",
+      "/fleet/coach-2025-2026/front.webp"
+    ],
+    "interiorImages": [
+      "/fleet/coach-2025-2026/interior.webp",
+      "/fleet/coach-2025-2026/interior-aisle.jpeg",
+      "/fleet/coach-2025-2026/interior-cabin.jpeg",
+      "/fleet/coach-2025-2026/interior-curtains.jpeg"
+    ],
+    "ar": {
+      "name": "كوتش باص",
+      "seatsLabel": "49 + 1 + 1",
+      "summary": "النقل بين المدن ونقل الموظفين والرحلات السياحية والجماعية, مجهّز وفق معايير راحة وسلامة عالية.",
+      "amenities": [
+        "مقاعد جلد فاخرة",
+        "شبكة واي فاي",
+        "نظام كاميرات مراقبة",
+        "منافذ شحن USB",
+        "إضاءة مميزة",
+        "ثلاجة تبريد",
+        "نظام الصوت",
+        "حمام / دورة مياه",
+        "شاشات عرض",
+        "تكييف مناسب للأجواء",
+        "ستائر فاخرة",
+        "وسائل السلامة",
+        "أنظمة فرامل متقدمة ABS",
+        "نظام تحديد المواقع GPS"
+      ]
+    },
+    "en": {
+      "name": "Coach Bus",
+      "seatsLabel": "49 + 1 + 1",
+      "summary": "Intercity transport, staff transportation, tourist trips, and group travel, equipped to high standards of comfort and safety.",
+      "amenities": [
+        "Luxury leather seats",
+        "Wi‑Fi",
+        "CCTV system",
+        "USB charging ports",
+        "Premium lighting",
+        "Refrigerator",
+        "Sound system",
+        "WC",
+        "Display screens",
+        "Cooling bus comfort",
+        "Luxury curtains",
+        "Safety features",
+        "ABS systems",
+        "GPS systems"
+      ]
+    },
+    "fr": {
+      "name": "Autocar Coach",
+      "seatsLabel": "49 + 1 + 1",
+      "summary": "Transport interurbain, transport de personnel, voyages touristiques et déplacements de groupe, équipé selon des standards élevés de confort et de sécurité.",
+      "amenities": [
+        "Sièges en cuir de luxe",
+        "Wi‑Fi",
+        "Système de vidéosurveillance",
+        "Ports de charge USB",
+        "Éclairage premium",
+        "Réfrigérateur",
+        "Système audio",
+        "Toilettes",
+        "Écrans d'affichage",
+        "Confort climatisé",
+        "Rideaux de luxe",
+        "Équipements de sécurité",
+        "Systèmes ABS",
+        "Systèmes GPS"
+      ]
+    },
+    "id": {
+      "name": "Bus Coach",
+      "seatsLabel": "49 + 1 + 1",
+      "summary": "Transportasi antarkota, transportasi staf, perjalanan wisata, dan perjalanan kelompok, dilengkapi dengan standar kenyamanan dan keselamatan tinggi.",
+      "amenities": [
+        "Kursi kulit mewah",
+        "Wi‑Fi",
+        "Sistem CCTV",
+        "Port pengisian USB",
+        "Pencahayaan premium",
+        "Kulkas",
+        "Sistem audio",
+        "WC",
+        "Layar tampilan",
+        "Kenyamanan AC bus",
+        "Tirai mewah",
+        "Fitur keselamatan",
+        "Sistem ABS",
+        "Sistem GPS"
+      ]
+    }
+  },
+  {
+    "slug": "city-2025",
+    "sortOrder": 3,
+    "published": true,
+    "showInShowroom": true,
+    "quoteClass": "city_large",
+    "coverImage": "/fleet/city-2025/side.webp",
+    "exteriorImages": [
+      "/fleet/city-2025/side.webp",
+      "/fleet/city-2025/front.webp"
+    ],
+    "interiorImages": [
+      "/fleet/city-2025/interior-seats.jpeg",
+      "/fleet/city-2025/interior-rows.jpeg",
+      "/fleet/city-2025/interior.webp"
+    ],
+    "ar": {
+      "name": "سيتي باص",
+      "seatsLabel": "45 + وقوف",
+      "summary": "النقل الترددي وخدمات الصلوات, مقاعد مريحة مع مساحة للوقوف لتنقل حضري ومشاعري بكفاءة.",
+      "amenities": [
+        "نظام كاميرات مراقبة",
+        "مقاعد مريحة مع مساحة للوقوف",
+        "ستائر فاخرة",
+        "وسائل السلامة",
+        "أنظمة فرامل متقدمة ABS",
+        "نظام تحديد المواقع GPS",
+        "تكييف مناسب للأجواء"
+      ]
+    },
+    "en": {
+      "name": "City Bus",
+      "seatsLabel": "45 + standing",
+      "summary": "Shuttle transportation and prayer services, comfortable seating with standing capacity for efficient urban and Holy Sites movement.",
+      "amenities": [
+        "CCTV system",
+        "Comfortable seats with standing capacity",
+        "Luxury curtains",
+        "Safety features",
+        "ABS systems",
+        "GPS systems",
+        "Cooling bus comfort"
+      ]
+    },
+    "fr": {
+      "name": "Bus urbain",
+      "seatsLabel": "45 + standing",
+      "summary": "Transport en navette et services de prière, sièges confortables avec places debout pour une mobilité efficace en ville et vers les Lieux saints.",
+      "amenities": [
+        "Système de vidéosurveillance",
+        "Sièges confortables avec places debout",
+        "Rideaux de luxe",
+        "Équipements de sécurité",
+        "Systèmes ABS",
+        "Systèmes GPS",
+        "Confort climatisé"
+      ]
+    },
+    "id": {
+      "name": "Bus Kota",
+      "seatsLabel": "45 + standing",
+      "summary": "Transportasi shuttle dan layanan salat, tempat duduk nyaman dengan kapasitas berdiri untuk pergerakan efisien di kota dan Tempat Suci.",
+      "amenities": [
+        "Sistem CCTV",
+        "Kursi nyaman dengan kapasitas berdiri",
+        "Tirai mewah",
+        "Fitur keselamatan",
+        "Sistem ABS",
+        "Sistem GPS",
+        "Kenyamanan AC bus"
+      ]
+    }
+  },
+  {
+    "slug": "labour-2024",
+    "sortOrder": 4,
+    "published": true,
+    "showInShowroom": true,
+    "quoteClass": "employee",
+    "coverImage": "/fleet/labour-2024/side.webp",
+    "exteriorImages": [
+      "/fleet/labour-2024/side.webp",
+      "/fleet/labour-2024/front.webp"
+    ],
+    "interiorImages": [
+      "/fleet/labour-2024/interior.webp"
+    ],
+    "ar": {
+      "name": "باص نقل عمال",
+      "seatsLabel": "41",
+      "summary": "نقل الموظفين والنقل المدرسي والرحلات الدورية, فئة عملية متوسطة للمسارات المؤسسية اليومية.",
+      "amenities": [
+        "أحزمة أمان",
+        "وسائل السلامة",
+        "أنظمة فرامل متقدمة ABS",
+        "نظام تحديد المواقع GPS",
+        "تكييف مناسب للأجواء"
+      ]
+    },
+    "en": {
+      "name": "Labour Bus",
+      "seatsLabel": "41",
+      "summary": "Staff transit, school transport, and routine trips, a practical mid-size class for daily institutional routes.",
+      "amenities": [
+        "Seat belts",
+        "Safety features",
+        "ABS systems",
+        "GPS systems",
+        "Cooling bus comfort"
+      ]
+    },
+    "fr": {
+      "name": "Bus personnel",
+      "seatsLabel": "41",
+      "summary": "Trajets de personnel, transport scolaire et déplacements courants, une classe pratique de taille moyenne pour les lignes institutionnelles quotidiennes.",
+      "amenities": [
+        "Ceintures de sécurité",
+        "Équipements de sécurité",
+        "Systèmes ABS",
+        "Systèmes GPS",
+        "Confort climatisé"
+      ]
+    },
+    "id": {
+      "name": "Bus Tenaga Kerja",
+      "seatsLabel": "41",
+      "summary": "Transit staf, transportasi sekolah, dan perjalanan rutin, kelas menengah praktis untuk rute kelembagaan harian.",
+      "amenities": [
+        "Sabuk pengaman",
+        "Fitur keselamatan",
+        "Sistem ABS",
+        "Sistem GPS",
+        "Kenyamanan AC bus"
+      ]
+    }
+  },
+  {
+    "slug": "coaster-2026",
+    "sortOrder": 5,
+    "published": true,
+    "showInShowroom": true,
+    "quoteClass": "city",
+    "coverImage": "/fleet/coaster-2026/side.webp",
+    "exteriorImages": [
+      "/fleet/coaster-2026/side.webp",
+      "/fleet/coaster-2026/front.jpg",
+      "/fleet/coaster-2026/side-plaza.jpg"
+    ],
+    "interiorImages": [
+      "/fleet/coaster-2026/interior-aisle.jpeg",
+      "/fleet/coaster-2026/interior-cabin.jpeg",
+      "/fleet/coaster-2026/interior-curtains.jpeg"
+    ],
+    "ar": {
+      "name": "كوستر باص",
+      "seatsLabel": "28",
+      "summary": "مخصّصة للنقل المدرسي: رحلات الطلاب اليومية، إضافةً إلى المجموعات الصغيرة ونقل الموظفين، سهلة الحركة في شوارع المدن وطرق المشاعر.",
+      "amenities": [
+        "أحزمة أمان",
+        "وسائل السلامة",
+        "أنظمة فرامل متقدمة ABS",
+        "أنظمة تتبع GPS",
+        "تبريد مريح"
+      ]
+    },
+    "en": {
+      "name": "Coaster Bus",
+      "seatsLabel": "28",
+      "summary": "Built for school transport: daily student runs, plus small groups and staff trips, easy to move through city streets and holy-site roads.",
+      "amenities": [
+        "Seat belts",
+        "Safety features",
+        "ABS systems",
+        "GPS systems",
+        "Cooling bus comfort"
+      ]
+    },
+    "fr": {
+      "name": "Bus Coaster",
+      "seatsLabel": "28",
+      "summary": "Conçu pour le transport scolaire : trajets quotidiens des élèves, ainsi que petits groupes et transport de personnel, facile à manœuvrer dans les rues de la ville et sur les routes des Lieux saints.",
+      "amenities": [
+        "Ceintures de sécurité",
+        "Équipements de sécurité",
+        "Systèmes ABS",
+        "Systèmes GPS",
+        "Confort climatisé"
+      ]
+    },
+    "id": {
+      "name": "Bus Coaster",
+      "seatsLabel": "28",
+      "summary": "Dirancang untuk transportasi sekolah: antar-jemput siswa harian, serta kelompok kecil dan transportasi staf, mudah bergerak di jalan kota dan rute Tempat Suci.",
+      "amenities": [
+        "Sabuk pengaman",
+        "Fitur keselamatan",
+        "Sistem ABS",
+        "Sistem GPS",
+        "Kenyamanan AC bus"
+      ]
+    }
+  }
+]

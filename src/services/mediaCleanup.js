@@ -1,19 +1,29 @@
 import { SiteContent } from '../models/SiteContent.js';
+import { FleetBus } from '../models/FleetBus.js';
 import { Report } from '../models/Report.js';
 import { logger } from '../utils/logger.js';
 import { adminKeyOf, deleteFiles, listFiles } from './storage.js';
 
 const DAY = 24 * 60 * 60_000;
 
-const keysOf = (docs) =>
-  new Set(docs.flatMap((d) => [d.image, ...(d.media || [])]).map(adminKeyOf).filter(Boolean));
+/** R2 keys of every admin upload a content item or fleet bus still uses. */
+export async function usedAdminKeys() {
+  const [posts, buses] = await Promise.all([
+    SiteContent.find({}, 'image media').lean(),
+    FleetBus.find({}, 'coverImage exteriorImages interiorImages').lean(),
+  ]);
+  const urls = [
+    ...posts.flatMap((d) => [d.image, ...(d.media || [])]),
+    ...buses.flatMap((b) => [b.coverImage, ...(b.exteriorImages || []), ...(b.interiorImages || [])]),
+  ];
+  return new Set(urls.map(adminKeyOf).filter(Boolean));
+}
 
-/** Delete these uploaded files from R2 unless another content item still uses them. */
+/** Delete these uploaded files from R2 unless another content item or bus still uses them. */
 export async function deleteUnusedMedia(urls) {
   const keys = [...new Set(urls.map(adminKeyOf).filter(Boolean))];
   if (!keys.length) return;
-  const docs = await SiteContent.find({}, 'image media').lean();
-  const used = keysOf(docs);
+  const used = await usedAdminKeys();
   await deleteFiles('public', keys.filter((k) => !used.has(k)));
 }
 
@@ -33,7 +43,7 @@ async function sweep(bucket, prefix, usedKeys, now, graceMs) {
  * Files younger than `graceMs` are kept: someone may still be mid-edit or mid-form.
  */
 export async function sweepUnusedMedia(now = new Date(), graceMs = DAY) {
-  const admin = await sweep('public', 'admin/', async () => keysOf(await SiteContent.find({}, 'image media').lean()), now, graceMs);
+  const admin = await sweep('public', 'admin/', usedAdminKeys, now, graceMs);
   const chat = await sweep(
     'private',
     'chat/',

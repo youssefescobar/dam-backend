@@ -15,6 +15,7 @@ import settingsRouter from './routes/settings.js';
 import reportsRouter from './routes/reports.js';
 import insightsRouter from './routes/insights.js';
 import contentRouter from './routes/content.js';
+import fleetRouter from './routes/fleet.js';
 import uploadsRouter from './routes/uploads.js';
 
 /**
@@ -50,6 +51,7 @@ export function createApp(options = {}) {
   app.use('/reports', reportsRouter);
   app.use('/insights', insightsRouter);
   app.use('/content', contentRouter);
+  app.use('/fleet', fleetRouter);
   app.use('/uploads', uploadsRouter);
 
   app.use(errorHandler);
