@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { z } from 'zod';
 import { Router } from 'express';
-import { FleetBus, QUOTE_CLASSES } from '../models/FleetBus.js';
+import { FleetBus, QUOTE_CLASSES, busImages } from '../models/FleetBus.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errorHandler.js';
@@ -18,7 +18,7 @@ const imageUrl = z
   .string()
   .trim()
   .max(1000)
-  .regex(/^(\/(?!\/)|https:\/\/)/, 'use a site path starting with / or an https:// URL');
+  .regex(/^(\/(?![/\\])|https:\/\/)/,'use a site path starting with / or an https:// URL');
 
 const localizedSchema = z.object({
   name: z.string().trim().max(120).optional().default(''),
@@ -73,8 +73,6 @@ async function seedIfEmpty() {
 const cleanUp = (urls) =>
   deleteUnusedMedia(urls).catch((err) => logger.warn({ err: err.message }, 'media cleanup failed'));
 
-const imagesOf = (doc) => [doc.coverImage, ...(doc.exteriorImages || []), ...(doc.interiorImages || [])];
-
 const FALLBACK = { ar: ['ar', 'en'], en: ['en', 'ar'], fr: ['fr', 'en', 'ar'], id: ['id', 'en', 'ar'] };
 
 /** Pick the requested language, falling back field by field. */
@@ -101,7 +99,7 @@ const router = Router();
 
 /** Public: published buses in website shape, e.g. GET /fleet?locale=fr */
 router.get('/', async (req, res) => {
-  const locale = FALLBACK[req.query.locale] ? req.query.locale : 'ar';
+  const locale = Object.hasOwn(FALLBACK, String(req.query.locale)) ? req.query.locale : 'ar';
   const docs = await FleetBus.find({ published: true }).sort(SORT).limit(200).lean();
   res.set('Cache-Control', 'public, max-age=60');
   res.json({ items: docs.map((d) => localize(d, locale)) });
@@ -139,12 +137,14 @@ router.put('/:id', requireAuth, validateBody(busSchema), async (req, res, next) 
     checkBus(req.body);
     const item = await FleetBus.findById(req.params.id);
     if (!item) throw new HttpError(404, 'Not found');
-    const before = imagesOf(item);
-    const { sortOrder, ...fields } = req.body;
-    item.set(sortOrder === undefined ? fields : req.body);
+    const before = busImages(item);
+    // The slug is the bus's fixed ID (the website labels buses by it), so an edit never changes it.
+    // A left-out sortOrder is absent from the parsed body, so the bus keeps its place.
+    const { slug: _slug, ...fields } = req.body;
+    item.set(fields);
     await item.save();
     res.json({ item });
-    const kept = new Set(imagesOf(item));
+    const kept = new Set(busImages(item));
     cleanUp(before.filter((url) => !kept.has(url)));
   } catch (err) {
     next(dupSlug(err));
@@ -155,7 +155,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
   const deleted = await FleetBus.findByIdAndDelete(req.params.id);
   if (!deleted) throw new HttpError(404, 'Not found');
   res.json({ ok: true });
-  cleanUp(imagesOf(deleted));
+  cleanUp(busImages(deleted));
 });
 
 export default router;

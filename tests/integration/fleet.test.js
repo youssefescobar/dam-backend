@@ -74,6 +74,8 @@ describe('Fleet (/fleet)', () => {
       showInShowroom: true,
       quoteClass: 'coach',
     });
+    // Odd locale values (incl. prototype keys) fall back to Arabic instead of crashing.
+    expect((await request(app).get('/fleet?locale=constructor')).status).toBe(200);
     const [ar] = (await request(app).get('/fleet')).body.items;
     expect(ar).toMatchObject({ name: 'باص', seatsLabel: '49 seats', amenities: ['Wi-Fi'] });
   });
@@ -83,6 +85,7 @@ describe('Fleet (/fleet)', () => {
     expect(bad.status).toBe(400);
     expect(bad.body.fields.coverImage).toBeDefined();
     expect((await request(app).post('/fleet').set(auth).send({ ...bus, interiorImages: ['//evil.test/a.png'] })).status).toBe(400);
+    expect((await request(app).post('/fleet').set(auth).send({ ...bus, interiorImages: ['/\\evil.test/a.png'] })).status).toBe(400);
     expect((await request(app).post('/fleet').set(auth).send({ ...bus, en: {}, ar: {} })).status).toBe(400);
 
     expect((await request(app).post('/fleet').set(auth).send(bus)).status).toBe(201);
@@ -104,7 +107,10 @@ describe('Fleet (/fleet)', () => {
     expect((await request(app).get('/fleet')).body.items.map((x) => x.id)).toEqual(['b']);
     const added = await request(app).post('/fleet').set(auth).send({ ...bus, slug: 'c' });
     expect(added.body.item.sortOrder).toBe(2); // a new bus goes last
-    expect((await request(app).put(`/fleet/${a._id}`).set(auth).send({ ...bus, slug: 'b' })).status).toBe(409);
+    // The slug is fixed after creation: an edit that sends another one keeps the old slug.
+    const renamed = await request(app).put(`/fleet/${a._id}`).set(auth).send({ ...bus, slug: 'b' });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.item.slug).toBe('a');
 
     expect((await request(app).delete(`/fleet/${b._id}`).set(auth)).status).toBe(200);
     expect((await request(app).delete(`/fleet/${b._id}`).set(auth)).status).toBe(404);

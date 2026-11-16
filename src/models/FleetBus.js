@@ -35,3 +35,6 @@ const fleetBusSchema = new mongoose.Schema(
 );
 
 export const FleetBus = mongoose.models.FleetBus || mongoose.model('FleetBus', fleetBusSchema);
+
+/** Every photo a bus uses: cover, then exterior, then interior. */
+export const busImages = (bus) => [bus.coverImage, ...(bus.exteriorImages || []), ...(bus.interiorImages || [])];

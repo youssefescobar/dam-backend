@@ -1,5 +1,5 @@
 import { SiteContent } from '../models/SiteContent.js';
-import { FleetBus } from '../models/FleetBus.js';
+import { FleetBus, busImages } from '../models/FleetBus.js';
 import { Report } from '../models/Report.js';
 import { logger } from '../utils/logger.js';
 import { adminKeyOf, deleteFiles, listFiles } from './storage.js';
@@ -14,7 +14,7 @@ export async function usedAdminKeys() {
   ]);
   const urls = [
     ...posts.flatMap((d) => [d.image, ...(d.media || [])]),
-    ...buses.flatMap((b) => [b.coverImage, ...(b.exteriorImages || []), ...(b.interiorImages || [])]),
+    ...buses.flatMap(busImages),
   ];
   return new Set(urls.map(adminKeyOf).filter(Boolean));
 }
